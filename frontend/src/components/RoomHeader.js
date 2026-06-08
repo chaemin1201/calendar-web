@@ -111,7 +111,17 @@ function RoomHeader({
 
   const activeNotices = (notices || []).filter(notice => {
     if (!notice.start_date || !notice.end_date) return true; // 기간 세팅이 없으면 상시 노출
-    return notice.start_date <= todayStr && todayStr <= notice.end_date;
+    // 2. 날짜 비교를 위해 Date 객체 생성
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const start = new Date(notice.start_date);
+  const end = new Date(notice.end_date);
+  start.setHours(0, 0, 0, 0);
+  end.setHours(0, 0, 0, 0);
+
+  // 3. 오늘 날짜가 기간 내에 있는지 확인
+  return today >= start && today <= end;
   });
 
   return (

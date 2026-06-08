@@ -148,13 +148,26 @@ function CalendarRoom() {
 
     try {
       if (type === 'leave') {
-        await fetch(`${API_BASE_URL}/api/rooms/${roomId}`, { method: 'DELETE' });
-        const saved = localStorage.getItem('my_shared_calendars');
-        if (saved) {
-          const arr = JSON.parse(saved);
-          const updated = arr.filter(r => String(r.id) !== String(roomId));
-          localStorage.setItem('my_shared_calendars', JSON.stringify(updated));
+        // 🌟 [수정] 방 전체 삭제 대신 '나만 나가기' 로직 수행
+        // 1. 현재 내 user_id 찾기
+        const myUser = roomUsers.find(u => u.user_name === myName);
+        const myUserId = myUser ? myUser.id : null;
+
+        if (myUserId) {
+          // 새로 만든 '나만 나가기' API 호출 (main.py에 추가한 경로)
+          await fetch(`${API_BASE_URL}/api/rooms/${roomId}/users/${myUserId}`, { 
+            method: 'DELETE' 
+          });
+        } else {
+          alert("사용자 정보를 찾을 수 없습니다.");
+          return;
         }
+
+        // 2. 로컬 스토리지 정리 (내가 나갔으니 내 정보 삭제)
+        localStorage.removeItem(`room_uname_${roomId}`);
+        localStorage.removeItem(`room_color_${roomId}`);
+        localStorage.removeItem(`room_name_${roomId}`);
+      
         navigate('/'); 
       } 
       else if (type === 'notice' || type === 'schedule') {
@@ -269,26 +282,38 @@ function CalendarRoom() {
           🚪 그룹 나가기
         </button>
       </div>
-      
-      {/* 🌟 [수정 포인트] 공지사항 렌더링 영역 - 게시 기간 표시 추가 */}
-      {notices.length > 0 && (
-        <div style={{ backgroundColor: '#fff3cd', color: '#856404', padding: '12px 20px', borderBottom: '1px solid #ffeeba', zIndex: 100, maxHeight: '65px', overflowY: 'auto' }}>
-          {notices.map((n, index) => (
-            <div key={n.id || n._id || index} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontWeight: 'bold', fontSize: '13px', margin: '4px 0', flexWrap: 'wrap' }}>
-              <span>📢 [공지] {n.content}</span>
-              
-              {/* 📅 기간 데이터(start_date, end_date)가 있을 경우에만 뱃지 형태로 렌더링 */}
-              {n.start_date && n.end_date && (
-                <span style={{ fontSize: '11px', color: '#d9534f', backgroundColor: '#fff', padding: '2px 6px', borderRadius: '4px', border: '1px solid #f5c6cb', fontWeight: 'normal' }}>
-                  {n.start_date} ~ {n.end_date}
-                </span>
-              )}
-              
-              <span style={{ fontSize: '11px', fontWeight: 'normal', color: '#666' }}>({n.writer || '익명'})</span>
-            </div>
-          ))}
-        </div>
-      )}
+
+      {/* 🌟 수정된 공지사항 렌더링 영역 */}
+      {(() => {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0); // 시간 제외, 날짜만 비교
+
+        // 기간 내에 있는 공지만 필터링
+        const activeNotices = notices.filter(n => {
+          if (!n.start_date || !n.end_date) return true; // 기간 없으면 항상 노출
+          const start = new Date(n.start_date);
+          const end = new Date(n.end_date);
+          start.setHours(0, 0, 0, 0);
+          end.setHours(0, 0, 0, 0);
+          return today >= start && today <= end;
+        });
+
+        return activeNotices.length > 0 ? (
+          <div style={{ backgroundColor: '#fff3cd', color: '#856404', padding: '12px 20px', borderBottom: '1px solid #ffeeba', zIndex: 100, maxHeight: '65px', overflowY: 'auto' }}>
+            {activeNotices.map((n, index) => (
+              <div key={n.id || n._id || index} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontWeight: 'bold', fontSize: '13px', margin: '4px 0', flexWrap: 'wrap' }}>
+                <span>📢 [공지] {n.content}</span>
+                {n.start_date && n.end_date && (
+                  <span style={{ fontSize: '11px', color: '#d9534f', backgroundColor: '#fff', padding: '2px 6px', borderRadius: '4px', border: '1px solid #f5c6cb', fontWeight: 'normal' }}>
+                    {n.start_date} ~ {n.end_date}
+                  </span>
+                )}
+                <span style={{ fontSize: '11px', fontWeight: 'normal', color: '#666' }}>({n.writer || '익명'})</span>
+              </div>
+            ))}
+          </div>
+        ) : null;
+      })()}
 
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         <div className="left-workspace-zone extended-view" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflowY: 'auto', padding: '15px' }}>

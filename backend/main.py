@@ -143,6 +143,24 @@ def delete_room(room_id: str, session: Session = Depends(db.get_db)):
     session.commit()
     return {"status": "success", "message": "방과 업로드된 모든 이미지 파일이 완전히 삭제되었습니다."}
 
+# 🌟 [신규 추가] 방 전체 삭제가 아닌, 특정 사용자만 방에서 나가게 하는 API
+@app.delete("/api/rooms/{room_id}/users/{user_id}")
+def leave_user(room_id: str, user_id: int, session: Session = Depends(db.get_db)):
+    # 1. 해당 방의 해당 유저를 찾음
+    user = session.query(db.User).filter(db.User.id == user_id, db.User.room_id == room_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="해당 방에 존재하지 않는 사용자입니다.")
+
+    # 2. 채팅 유지: 사용자가 삭제되기 전에 작성한 채팅의 user_id 연결 끊기
+    # (Chat 모델에 user_id가 추가되어 있다는 가정하에 작성)
+    user_chats = session.query(db.Chat).filter(db.Chat.writer == user.user_name, db.Chat.room_id == room_id).all()
+    for chat in user_chats:
+        chat.user_id = None # 작성자 연결 끊기 (삭제 방지)
+    
+    # 3. 사용자만 삭제
+    session.delete(user)
+    session.commit()
+    return {"status": "success", "message": f"{user.user_name}님이 방에서 나갔습니다."}
 # ==========================================
 # 📢 Notice API
 # ==========================================

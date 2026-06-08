@@ -69,12 +69,16 @@ class Chat(Base):
     room_id = Column(String, ForeignKey("rooms.room_id"), nullable=True)
     # 🌟 [수정] schedule_id에도 ForeignKey를 걸어 데이터 무결성 보장
     schedule_id = Column(Integer, ForeignKey("schedules.id"), nullable=True)  
+    # 🌟 추가: User 테이블과 연결 (user_id 컬럼 추가)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     content = Column(Text)
     writer = Column(String)
     color_code = Column(String)
     
     # 🌟 [추가] 실시간 채팅의 정확한 정렬을 위한 시간 기록
     created_at = Column(DateTime, default=datetime.utcnow)
+    # 🌟 중요: cascade 옵션 없음! (기본값인 관계만 설정됨)
+    user = relationship("User")
 
 def create_tables():
     Base.metadata.create_all(bind=engine)
