@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-const API_BASE_URL = "https://calendar-backend-a4g4.onrender.com";
+const API_BASE_URL = "";
 
 function MainHome() {
   const navigate = useNavigate();
