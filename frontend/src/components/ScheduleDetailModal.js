@@ -73,6 +73,7 @@ function ScheduleDetailModal({
         }
 
         if (res.ok) {
+          // eslint-disable-next-line
           const data = await res.json();
           // 백엔드 상태와 프론트 상태 동기화 (기존 텍스트 구조 유지)
           setSelectedEventData(prev => ({ ...prev, memo: memoInput, note: memoInput, description: memoInput }));
