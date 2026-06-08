@@ -116,7 +116,7 @@ class UserJoin(BaseModel):
 # ==========================================
 # 🏠 Room & Users API
 # ==========================================
-@app.post("/api/rooms")
+@app.post("/api/rooms/")
 def create_room(room: RoomCreate, db_session: Session = Depends(db.get_db)):
     while True:
         room_code = f"{random.randint(100000, 999999)}"

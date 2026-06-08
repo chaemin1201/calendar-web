@@ -19,7 +19,7 @@ function MainHome() {
     const trimmedName = roomNameInput.trim();
     if (!trimmedName) { alert("방 이름을 입력해 주세요."); return; }
     try {
-      const response = await fetch(`${API_BASE_URL}/api/rooms`, {
+      const response = await fetch(`${API_BASE_URL}/api/rooms/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ room_name: trimmedName })
