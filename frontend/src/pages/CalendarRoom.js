@@ -6,7 +6,7 @@ import TimeLineSide from '../components/TimeLineSide';
 import ChatSidebar from '../components/ChatSidebar';
 import ScheduleDetailModal from '../components/ScheduleDetailModal';
 
-const API_BASE_URL = "http://127.0.0.1:8000";
+const API_BASE_URL = "https://calendar-backend-a4g4.onrender.com";
 
 const RAINBOW_COLORS = [
   { code: '#ff4757', name: '빨강' }, { code: '#ff9233', name: '주황' },
