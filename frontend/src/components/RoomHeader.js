@@ -106,8 +106,6 @@ function RoomHeader({
   };
 
   // 🌟 [수정 완료] 타임존 버그가 없는 로컬 시간(한국 시간 등) 기준 YYYY-MM-DD 구하기
-  const d = new Date();
-  const todayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
   const activeNotices = (notices || []).filter(notice => {
     if (!notice.start_date || !notice.end_date) return true; // 기간 세팅이 없으면 상시 노출
