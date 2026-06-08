@@ -1,6 +1,7 @@
 from sqlalchemy import create_engine, Column, Integer, String, Text, ForeignKey, DateTime
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
+from datetime import datetime
 
 DATABASE_URL = "sqlite:///./shared_calendar.db"
 
