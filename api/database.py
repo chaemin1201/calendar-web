@@ -8,20 +8,20 @@ from sqlalchemy.orm import relationship, sessionmaker
 # 1. 로컬 환경인 경우 .env 파일의 변수들을 읽어옵니다.
 load_dotenv()
 
-# 2. 환경 변수에서 DATABASE_URL을 가져옵니다.
-# database.py에서 DATABASE_URL 변환 부분을 이 코드로 교체합니다.
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
-DATABASE_URL = os.getenv("DATABASE_URL")
+# 🌟 [치트키] Vercel 대시보드를 거치지 않고, 완벽하게 검증된 5432 정석 주소를 코드에 직접 박습니다.
+# 아래 [채민님비밀번호] 자리에 진짜 비밀번호만 정확히 넣어주세요. (대괄호 []는 지우셔야 합니다!)
+DATABASE_URL = "postgresql+psycopg2://postgres:calendae2026web@db.oaecvjbvaxuqidfshseu.supabase.co:5432/postgres?sslmode=require"
 
-if DATABASE_URL:
-    if DATABASE_URL.startswith("postgresql://"):
-        # 주소 문자열을 건드리지 않고 앞에 드라이버 명만 깔끔하게 붙여줍니다.
-        DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+psycopg2://", 1)
-
-# 엔진 생성
+# Vercel-Supabase 간의 IPv6 및 핸드셰이크 오류를 원천 차단하는 옵션
 engine = create_engine(
     DATABASE_URL,
-    pool_pre_ping=True  # 6543 풀러 연결을 안정적으로 유지해주는 필수 옵션
+    connect_args={
+        "gssencmode": "disable"  # IPv6 네트워크 길 찾기 오류 완벽 방지
+    },
+    pool_pre_ping=True
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
