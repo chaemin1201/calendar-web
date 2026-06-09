@@ -172,8 +172,7 @@ function CalendarRoom() {
         const listKey = 'my_shared_calendars'; 
         const currentList = JSON.parse(localStorage.getItem(listKey) || '[]');
         
-        // 목록 배열에서 현재 내가 나간 방 코드(roomId)만 제외 필터링
-        const updatedList = currentList.filter(id => String(id) !== String(roomId));
+        const updatedList = currentList.filter(room => String(room.id) !== String(roomId));
         
         // 갱신된 참여 목록을 로컬 스토리지에 재저장
         localStorage.setItem(listKey, JSON.stringify(updatedList));
