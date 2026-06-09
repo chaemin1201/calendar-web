@@ -4,6 +4,7 @@ import os
 import random
 from datetime import datetime
 from typing import Optional
+
 # .env 및 외부 라이브러리 추가
 import google.generativeai as genai
 from api import database as db  # 🌟 수정된 database.py 임포트
@@ -42,17 +43,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ❌ 기존 UPLOAD_DIR 및 app.mount 로컬 폴더 관련 코드 삭제 (서버리스 환경 최적화)
+# 🌟 [보안 및 안정성 강화]
+# 서버 기동 시 무조건 에러가 나서 뻗는 현상을 방지하기 위해 예외 처리를 감싸줍니다.
+try:
+    db.create_tables()
+except Exception as db_err:
+    print(f"⚠️ 서버 시작 시 테이블 생성 건너뜀 (DB 연결 세팅 확인 필요): {db_err}")
 
-# 서버 시작 시 Supabase 테이블 생성/검증
-db.create_tables()
 
 # ==========================================
 # 🛠️ 🌟 Supabase 스토리지 실제 파일 삭제 함수
 # ==========================================
 def delete_storage_file(public_url: Optional[str]):
     """Supabase Public URL을 분석하여 스토리지 버킷 내부의 실제 파일을 삭제합니다."""
-    if not public_url:
+    if not public_url or not SUPABASE_URL and not SUPABASE_ANON_KEY:
         return
     
     # URL에서 파일명만 추출 (예: .../storage/v1/object/public/uploaded_images/파일명)
@@ -286,9 +290,8 @@ async def create_schedule_manual(
     file: Optional[UploadFile] = File(None),
     db_session: Session = Depends(db.get_db),
 ):
-    # 🌟 1. 수동 등록 이미지 Supabase Storage 업로드 로직으로 교체
     image_public_url = None
-    if file and file.filename:
+    if file and file.filename and SUPABASE_URL and SUPABASE_ANON_KEY:
         random_prefix = random.randint(1000, 9999)
         clean_filename = f"{random_prefix}_{file.filename.replace(' ', '_')}"
         try:
@@ -308,7 +311,7 @@ async def create_schedule_manual(
         event_date=date_str,
         event_time=time_str,
         color_code=color_code,
-        image_url=image_public_url,  # 이제 영구 Public 클라우드 URL 주소가 보관됩니다.
+        image_url=image_public_url,
         memo="",
     )
     db_session.add(new_schedule)
@@ -367,7 +370,6 @@ def delete_schedule(schedule_id: int, db_session: Session = Depends(db.get_db)):
     if not sch:
         raise HTTPException(status_code=404, detail="일정이 존재하지 않습니다.")
 
-    # 🌟 스케줄 삭제 시 Supabase 클라우드 스토리지 파일 삭제 함수 호출
     delete_storage_file(sch.image_url)
     delete_storage_file(sch.memo_file_url)
 
@@ -401,16 +403,16 @@ async def create_schedule_ai(
         image_bytes = await file.read()
         image_public_url = None
 
-        # 🌟 2. AI 분석용 원본 이미지도 Supabase Storage에 영구 저장
-        try:
-            supabase_client.storage.from_("uploaded_images").upload(
-                path=clean_filename,
-                file=image_bytes,
-                file_options={"content-type": file.content_type}
-            )
-            image_public_url = supabase_client.storage.from_("uploaded_images").get_public_url(clean_filename)
-        except Exception as e:
-            print(f"⚠️ AI 이미지 스토리지 업로드 실패: {e}")
+        if SUPABASE_URL and SUPABASE_ANON_KEY:
+            try:
+                supabase_client.storage.from_("uploaded_images").upload(
+                    path=clean_filename,
+                    file=image_bytes,
+                    file_options={"content-type": file.content_type}
+                )
+                image_public_url = supabase_client.storage.from_("uploaded_images").get_public_url(clean_filename)
+            except Exception as e:
+                print(f"⚠️ AI 이미지 스토리지 업로드 실패: {e}")
 
         now = datetime.now()
         current_date_str = now.strftime("%m-%d")
@@ -515,9 +517,8 @@ async def update_schedule_memo(
 
     sch.memo = memo
 
-    # 🌟 3. 메모장 첨부파일(.pdf, .txt, .docx 등 일반 파일)도 Supabase Storage 처리
-    if file and file.filename:
-        delete_storage_file(sch.memo_file_url)  # 기존 파일 클라우드에서 제거
+    if file and file.filename and SUPABASE_URL and SUPABASE_ANON_KEY:
+        delete_storage_file(sch.memo_file_url)
 
         random_prefix = random.randint(1000, 9999)
         clean_filename = f"memo_{random_prefix}_{file.filename.replace(' ', '_')}"
@@ -527,7 +528,7 @@ async def update_schedule_memo(
             supabase_client.storage.from_("uploaded_images").upload(
                 path=clean_filename,
                 file=file_bytes,
-                file_options={"content-type": file.content_type}  # 타입 자동 매핑
+                file_options={"content-type": file.content_type}
             )
             sch.memo_file_url = supabase_client.storage.from_("uploaded_images").get_public_url(clean_filename)
         except Exception as e:
@@ -605,7 +606,7 @@ def delete_schedule_main_image(
         raise HTTPException(status_code=404, detail="일정이 존재하지 않습니다.")
 
     if sch.image_url:
-        delete_storage_file(sch.image_url)  # 클라우드 스토리지 파일 삭제
+        delete_storage_file(sch.image_url)
         sch.image_url = None
         db_session.commit()
     return {"status": "success", "message": "일정 메인 이미지가 삭제되었습니다."}
@@ -622,7 +623,7 @@ def delete_schedule_memo_file(
         raise HTTPException(status_code=404, detail="일정이 존재하지 않습니다.")
 
     if sch.memo_file_url:
-        delete_storage_file(sch.memo_file_url)  # 클라우드 스토리지 파일 삭제
+        delete_storage_file(sch.memo_file_url)
         sch.memo_file_url = None
         db_session.commit()
     return {"status": "success", "message": "메모 첨부파일이 삭제되었습니다."}

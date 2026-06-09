@@ -9,13 +9,12 @@ from sqlalchemy.orm import relationship, sessionmaker
 load_dotenv()
 
 # 2. 환경 변수에서 DATABASE_URL을 가져옵니다.
+# 기존의 DATABASE_URL = os.getenv("DATABASE_URL") 아랫부분을 이렇게 수정합니다.
 DATABASE_URL = os.getenv("DATABASE_URL")
 
-# ⚠️ [중요] Supabase(PostgreSQL) 연결을 위한 주소 보정
-# Supabase 주소가 postgresql:// 로 시작하면 SQLAlchemy에서 에러가 날 수 있으므로 postgresql+psycopg2:// 로 변경해 줍니다.
+# 🌟 [수정] 문자열을 강제로 쪼개지 않고, 안전하게 드라이버 지정을 보정합니다.
 if DATABASE_URL and DATABASE_URL.startswith("postgresql://"):
-    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+psycopg2://", 1)
-
+    DATABASE_URL = "postgresql+psycopg2" + DATABASE_URL[10:]
 # 🌟 [수정] Supabase는 SQLite가 아니므로 connect_args={"check_same_thread": False} 옵션을 지워야 합니다.
 # Vercel 서버리스 환경에서 커넥션 찌꺼기가 남지 않도록 풀링 시스템을 끄거나 최적화합니다.
 engine = create_engine(
