@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Optional
 # .env 및 외부 라이브러리 추가
 import google.generativeai as genai
-import database as db  # 🌟 수정된 database.py 임포트
+from api import database as db  # 🌟 수정된 database.py 임포트
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
