@@ -169,7 +169,7 @@ function CalendarRoom() {
       
         // 🌟 3. [추가] 메인 홈 화면의 '참여 중인 방 목록' 저장 키에서도 현재 방 코드 제거
         // 홈 화면 컴포넌트에서 사용하는 저장소 키 이름(예: 'joined_rooms' 혹은 'my_rooms' 등)에 맞게 확인해 보세요.
-        const listKey = 'joined_rooms'; 
+        const listKey = 'my_shared_calendars'; 
         const currentList = JSON.parse(localStorage.getItem(listKey) || '[]');
         
         // 목록 배열에서 현재 내가 나간 방 코드(roomId)만 제외 필터링
