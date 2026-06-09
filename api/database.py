@@ -11,6 +11,12 @@ load_dotenv()
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
+from supabase import create_client, Client
+
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY") # 👈 KEY를 ANON_KEY로 수정
+supabase = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
+
 # 🌟 [치트키] Vercel 대시보드를 거치지 않고, 완벽하게 검증된 5432 정석 주소를 코드에 직접 박습니다.
 # 아래 [채민님비밀번호] 자리에 진짜 비밀번호만 정확히 넣어주세요. (대괄호 []는 지우셔야 합니다!)
 DATABASE_URL = os.getenv("DATABASE_URL")

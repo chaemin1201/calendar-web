@@ -14,6 +14,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy.orm import Session  # 🌟 데이터베이스 세션 타입용
 from supabase import create_client, Client
+from api.database import create_tables, engine
+
 
 load_dotenv()
 
@@ -43,13 +45,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 🌟 [보안 및 안정성 강화]
-# 서버 기동 시 무조건 에러가 나서 뻗는 현상을 방지하기 위해 예외 처리를 감싸줍니다.
-try:
-    db.create_tables()
-except Exception as db_err:
-    print(f"⚠️ 서버 시작 시 테이블 생성 건너뜀 (DB 연결 세팅 확인 필요): {db_err}")
-
+# 🌟 서버 시작 시 딱 한 번만 DB 테이블을 만듭니다.
+@app.on_event("startup")
+def startup_event():
+    try:
+        print("🚀 서버 시작: 데이터베이스 테이블 생성 시도...")
+        db.create_tables()
+        print("✅ 테이블 생성 완료!")
+    except Exception as e:
+        print(f"⚠️ 테이블 생성 실패 (DB 연결 확인 필요): {e}")
 
 # ==========================================
 # 🛠️ 🌟 Supabase 스토리지 실제 파일 삭제 함수
@@ -119,20 +123,18 @@ class UserJoin(BaseModel):
 # 🏠 Room & Users API
 # ==========================================
 @app.post("/api/rooms/")
-def create_room(room: RoomCreate, db_session: Session = Depends(db.get_db)):
-    while True:
-        room_code = f"{random.randint(100000, 999999)}"
-        existing = (
-            db_session.query(db.Room).filter(db.Room.room_id == room_code).first()
-        )
-        if not existing:
-            break
-
-    new_room = db.Room(room_id=room_code, room_name=room.room_name)
-    db_session.add(new_room)
-    db_session.commit()
+def create_room(room: RoomCreate):
+    # 1. 6자리 랜덤 코드 생성
+    room_code = f"{random.randint(100000, 999999)}"
+    
+    # 2. Supabase API를 사용하여 데이터 삽입
+    # (주의: room_id 컬럼이 Supabase 테이블에도 있어야 합니다)
+    data = supabase.table("rooms").insert({
+        "room_id": room_code, 
+        "room_name": room.room_name
+    }).execute()
+    
     return {"room_code": room_code, "room_name": room.room_name}
-
 
 @app.post("/api/rooms/{room_id}/join")
 def join_room(
