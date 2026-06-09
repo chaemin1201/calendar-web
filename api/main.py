@@ -4,7 +4,6 @@ import os
 import random
 from datetime import datetime
 from typing import Optional
-
 # .env 및 외부 라이브러리 추가
 import google.generativeai as genai
 import database as db  # 🌟 수정된 database.py 임포트
