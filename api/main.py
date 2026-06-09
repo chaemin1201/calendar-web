@@ -31,7 +31,7 @@ SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY")
 
 if SUPABASE_URL and SUPABASE_ANON_KEY:
-    supabase_client: Client = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
+    supabase_client: Client = create_client(SUPABASE_URL.strip(), SUPABASE_ANON_KEY.strip())
 else:
     print("⚠️ 경고: Storage 연동을 위한 SUPABASE_URL 또는 SUPABASE_ANON_KEY가 설정되지 않았습니다.")
 

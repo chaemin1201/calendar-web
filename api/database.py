@@ -29,6 +29,7 @@ engine = create_engine(
     DATABASE_URL,
     connect_args={
         # 🌟 핵심: Vercel이 IPv6로 길을 잃지 않게 네트워크 설정을 강제합니다.
+        "options": "-c inet_protocols=ipv4",
         "gssencmode": "disable"
     },
     pool_pre_ping=True
