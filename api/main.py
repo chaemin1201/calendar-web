@@ -14,7 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy.orm import Session  # 🌟 데이터베이스 세션 타입용
 from supabase import create_client, Client
-from api.database import create_tables, engine
+from api.database import supabase
 
 
 load_dotenv()
@@ -124,17 +124,18 @@ class UserJoin(BaseModel):
 # ==========================================
 @app.post("/api/rooms/")
 def create_room(room: RoomCreate):
-    # 1. 6자리 랜덤 코드 생성
-    room_code = f"{random.randint(100000, 999999)}"
+    # 1. 랜덤 방 코드 생성
+    room_code = str(random.randint(100000, 999999))
     
-    # 2. Supabase API를 사용하여 데이터 삽입
-    # (주의: room_id 컬럼이 Supabase 테이블에도 있어야 합니다)
-    data = supabase_client.table("rooms").insert({ 
-        "room_id": room_code, 
+    # 2. Supabase API로 직접 데이터 삽입
+    # 이제 DB 엔진을 거치지 않으므로 에러가 날 곳이 없습니다!
+    response = supabase.table("rooms").insert({
+        "room_id": room_code,
         "room_name": room.room_name
     }).execute()
     
-    return {"room_code": room_code, "room_name": room.room_name}
+    # 3. 결과 반환
+    return {"room_code": room_code, "data": response.data}
 
 @app.post("/api/rooms/{room_id}/join")
 def join_room(
