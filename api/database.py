@@ -19,7 +19,10 @@ DATABASE_URL = "postgresql+psycopg2://postgres:calendae2026web@db.oaecvjbvaxuqid
 engine = create_engine(
     DATABASE_URL,
     connect_args={
-        "gssencmode": "disable"  # IPv6 네트워크 길 찾기 오류 완벽 방지
+        "keepalives": 1,
+        "keepalives_idle": 30,
+        "keepalives_interval": 10,
+        "keepalives_count": 5
     },
     pool_pre_ping=True
 )
