@@ -19,21 +19,25 @@ supabase = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
 
 # 🌟 [치트키] Vercel 대시보드를 거치지 않고, 완벽하게 검증된 5432 정석 주소를 코드에 직접 박습니다.
 # 아래 [채민님비밀번호] 자리에 진짜 비밀번호만 정확히 넣어주세요. (대괄호 []는 지우셔야 합니다!)
-DATABASE_URL = os.getenv("DATABASE_URL")
+# 파일로 생성되는 sqlite DB 주소입니다. (현재 프로젝트 폴더에 test.db 파일이 생깁니다)
+SQLALCHEMY_DATABASE_URL = "sqlite:///./test.db"
 
-if DATABASE_URL and DATABASE_URL.startswith("postgresql://"):
-    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+psycopg2://", 1)
-
-# 보안: 환경 변수를 사용하고, IPv4를 강제하는 옵션만 추가
 engine = create_engine(
-    DATABASE_URL,
-    connect_args={
-        # 🌟 핵심: Vercel이 IPv6로 길을 잃지 않게 네트워크 설정을 강제합니다.
-        "options": "-c inet_protocols=ipv4",
-        "gssencmode": "disable"
-    },
-    pool_pre_ping=True
+    SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
 )
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+Base = declarative_base()
+
+# 테이블 생성 함수
+def create_tables():
+    Base.metadata.create_all(bind=engine)
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
@@ -112,15 +116,3 @@ class Chat(Base):
     # 실시간 채팅의 정확한 정렬을 위한 시간 기록
     created_at = Column(DateTime, default=datetime.utcnow)
     user = relationship("User")
-
-
-def create_tables():
-    Base.metadata.create_all(bind=engine)
-
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
