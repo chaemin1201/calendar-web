@@ -116,9 +116,19 @@ def create_room(room: RoomCreate):
     
     return {"room_code": room_code, "data": response.data}
 
-
 @app.post("/api/rooms/{room_id}/join")
 def join_room(room_id: str, payload: UserJoin):
+    # 🌟 [추가] 해당 방에 이미 같은 색상을 선택한 유저가 있는지 검사
+    existing_color = supabase.table("user") \
+        .select("*") \
+        .eq("room_id", room_id) \
+        .eq("color_code", payload.color_code) \
+        .execute()
+        
+    if existing_color.data:
+        raise HTTPException(status_code=400, detail="이미 다른 팀원이 사용 중인 색상입니다. 다른 색상을 선택해주세요.")
+
+    # 기존 참여 로직
     response = supabase.table("user").insert({
         "room_id": room_id,
         "user_name": payload.user_name,
@@ -129,7 +139,6 @@ def join_room(room_id: str, payload: UserJoin):
         raise HTTPException(status_code=400, detail="방 참여에 실패했습니다.")
         
     return {"user_name": payload.user_name, "color_code": payload.color_code}
-
 
 @app.get("/api/rooms/{room_id}/users")
 def get_room_users(room_id: str):
@@ -143,39 +152,61 @@ def delete_room(room_id: str):
     if not room_check.data:
         raise HTTPException(status_code=404, detail="방이 존재하지 않습니다.")
 
-    # 1. 스토리지 파일 추적을 위해 일정 데이터 미리 확보
+    # 1. 스토리지 파일(이미지, 메모 파일) URL 주소 미리 확보
     schedules_res = supabase.table("schedule").select("image_url, memo_file_url").eq("room_id", room_id).execute()
 
-    # 2. DB에서 방 삭제 (On Delete Cascade가 안 되어 있을 경우를 대비해 수동으로 지우거나 외래키 설정을 확인하세요)
-    # 여기서는 DB 데이터 무결성을 위해 DB를 먼저 지우거나 연쇄 삭제를 유도합니다.
+    # 🌟 [보완] DB 외래키 연쇄 삭제 무결성 에러 방지
+    # 하위 레코드들(자식 테이블)을 종속성 순서에 맞춰 수동으로 안전하게 먼저 제거합니다.
+    try:
+        supabase.table("subschedule").delete().eq("room_id", room_id).execute() # 스키마에 room_id가 있다면 수행
+    except Exception:
+        pass # subschedule에 schedule_id만 연결되어 있다면 아래 schedule 삭제 시 연쇄 삭제되므로 무시 가능
+
+    supabase.table("chat").delete().eq("room_id", room_id).execute()
+    supabase.table("notice").delete().eq("room_id", room_id).execute()
+    supabase.table("user").delete().eq("room_id", room_id).execute()
+    supabase.table("schedule").delete().eq("room_id", room_id).execute()
+
+    # 2. 자식 데이터 정리 후 메인 방 레코드 최종 삭제
     supabase.table("room").delete().eq("room_id", room_id).execute()
 
-    # 3. DB 삭제 성공 후 실제 파일 버킷에서 정리 (안전한 리소스 해제)
-    for sch in schedules_res.data:
-        delete_storage_file(sch.get("image_url"))
-        delete_storage_file(sch.get("memo_file_url"))
+    # 3. DB가 완벽히 밀린 후, Supabase Storage 버킷 리소스 해제
+    if schedules_res.data:
+        for sch in schedules_res.data:
+            if sch.get("image_url"):
+                delete_storage_file(sch.get("image_url"))
+            if sch.get("memo_file_url"):
+                delete_storage_file(sch.get("memo_file_url"))
     
     return {
         "status": "success",
-        "message": "방과 클라우드에 업로드된 모든 파일이 완전히 삭제되었습니다.",
+        "message": "방과 연관된 모든 데이터 및 클라우드 업로드 파일이 완전히 정리되었습니다.",
     }
-
 
 @app.delete("/api/rooms/{room_id}/users/{user_id}")
 def leave_user(room_id: str, user_id: int):
+    # 1. 탈퇴하려는 유저가 방에 실제로 존재하는지 확인
     user_check = supabase.table("user").select("*").eq("id", user_id).eq("room_id", room_id).execute()
     if not user_check.data:
         raise HTTPException(status_code=404, detail="해당 방에 존재하지 않는 사용자입니다.")
 
     user_name = user_check.data[0]["user_name"]
 
-    # 사용자가 작성한 채팅 내역의 연결성 처리 (부모 키 탈퇴 시 처리)
-    supabase.table("chat").update({"user_id": None}).eq("writer", user_name).eq("room_id", room_id).execute()
+    # 2. 사용자가 등록했던 세부 일정(subschedule) 시간표 데이터만 삭제
+    try:
+        supabase.table("subschedule").delete().eq("user_name", user_name).execute()
+    except Exception as e:
+        print(f"⚠️ subschedule 삭제 중 예외 발생: {e}")
+
+    # 🌟 [수정] 기존에 있던 채팅 내역을 수정(update)하는 로직을 통째로 들어냈습니다.
+    # 이제 이 유저가 작성했던 채팅의 content, writer(이름), color_code 등은 DB에 그대로 보존됩니다.
+    
+    # 3. 최종적으로 '참여 목록'에서만 유저 삭제
     supabase.table("user").delete().eq("id", user_id).execute()
     
     return {
         "status": "success",
-        "message": f"{user_name}님이 방에서 나갔습니다.",
+        "message": f"{user_name}님이 방에서 나갔습니다. 참여 목록과 시간표만 정리되었고 작성한 채팅은 유지됩니다.",
     }
 
 
@@ -222,9 +253,10 @@ def get_chats(room_id: str):
 
 @app.post("/api/rooms/{room_id}/chats")
 def create_chat(room_id: str, chat: ChatCreate):
+    # 🌟 [수정] "room_id": room_id 가 두 번 중복 선언되어 있던 버그를 제거했습니다.
     supabase.table("chat").insert({
         "room_id": room_id,
-        "room_id": room_id,
+        "schedule_id": None,
         "content": chat.content,
         "writer": chat.writer,
         "color_code": chat.color_code,

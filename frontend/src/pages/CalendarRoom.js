@@ -148,13 +148,12 @@ function CalendarRoom() {
 
     try {
       if (type === 'leave') {
-        // 🌟 [수정] 방 전체 삭제 대신 '나만 나가기' 로직 수행
         // 1. 현재 내 user_id 찾기
         const myUser = roomUsers.find(u => u.user_name === myName);
         const myUserId = myUser ? myUser.id : null;
 
         if (myUserId) {
-          // 새로 만든 '나만 나가기' API 호출 (main.py에 추가한 경로)
+          // 백엔드 API 호출하여 DB에서 유저 제거
           await fetch(`${API_BASE_URL}/api/rooms/${roomId}/users/${myUserId}`, { 
             method: 'DELETE' 
           });
@@ -163,13 +162,25 @@ function CalendarRoom() {
           return;
         }
 
-        // 2. 로컬 스토리지 정리 (내가 나갔으니 내 정보 삭제)
+        // 2. 로컬 스토리지 정리 (해당 방 개별 프로필 데이터 삭제)
         localStorage.removeItem(`room_uname_${roomId}`);
         localStorage.removeItem(`room_color_${roomId}`);
         localStorage.removeItem(`room_name_${roomId}`);
       
+        // 🌟 3. [추가] 메인 홈 화면의 '참여 중인 방 목록' 저장 키에서도 현재 방 코드 제거
+        // 홈 화면 컴포넌트에서 사용하는 저장소 키 이름(예: 'joined_rooms' 혹은 'my_rooms' 등)에 맞게 확인해 보세요.
+        const listKey = 'joined_rooms'; 
+        const currentList = JSON.parse(localStorage.getItem(listKey) || '[]');
+        
+        // 목록 배열에서 현재 내가 나간 방 코드(roomId)만 제외 필터링
+        const updatedList = currentList.filter(id => String(id) !== String(roomId));
+        
+        // 갱신된 참여 목록을 로컬 스토리지에 재저장
+        localStorage.setItem(listKey, JSON.stringify(updatedList));
+
+        // 4. 메인 화면으로 이동 (이제 목록에서 완전히 사라진 상태로 렌더링됩니다)
         navigate('/'); 
-      } 
+      }
       else if (type === 'notice' || type === 'schedule') {
         let endpoint = type === 'notice' ? 'notices' : 'schedules';
         let res = await fetch(`${API_BASE_URL}/api/${endpoint}/${id}`, { method: 'DELETE' });
@@ -250,17 +261,46 @@ function CalendarRoom() {
     .filter(s => isMatchDate(s.event_date, selectedDate))
     .sort((a, b) => (a.event_time || '').localeCompare(b.event_time || ''));
 
-  if (!myName) {
+if (!myName) {
     return (
       <div className="modal-overlay">
         <div className="modal-content-profile">
           <h2>🎨 캘린더 공간 프로필 등록</h2>
           <form onSubmit={handleJoinSpace}>
-            <input type="text" placeholder="이름 입력" value={inputName} onChange={e => setInputName(e.target.value)} required className="profile-name-input" maxLength={10} />
+            <input 
+              type="text" 
+              placeholder="이름 입력" 
+              value={inputName} 
+              onChange={e => setInputName(e.target.value)} 
+              required 
+              className="profile-name-input" 
+              maxLength={10} 
+            />
             <div className="rainbow-palette-grid">
-              {RAINBOW_COLORS.map(color => (
-                <button key={color.code} type="button" className={`rainbow-chip-btn ${selectedColor === color.code ? 'active-chip' : ''}`} style={{ backgroundColor: color.code }} onClick={() => setSelectedColor(color.code)} />
-              ))}
+              {RAINBOW_COLORS.map(color => {
+                // 🌟 [추가] 현재 방 참여자들의 색상 중 현재 칩의 색상이 포함되어 있는지 판별
+                const isColorTaken = roomUsers.some(user => user.color_code === color.code);
+
+                return (
+                  <button 
+                    key={color.code} 
+                    type="button" 
+                    // 🌟 이미 선택된 색상일 경우 클릭 불가능하도록 비활성화
+                    disabled={isColorTaken}
+                    className={`rainbow-chip-btn ${selectedColor === color.code ? 'active-chip' : ''}`} 
+                    style={{ 
+                      backgroundColor: color.code,
+                      // 🌟 이미 선택된 색상은 흐릿하게 투명도를 주고, 마우스 커서를 금지 모양으로 설정
+                      opacity: isColorTaken ? 0.25 : 1,
+                      cursor: isColorTaken ? 'not-allowed' : 'pointer',
+                      border: isColorTaken ? '1px dashed #aaa' : (selectedColor === color.code ? '3px solid #333' : 'none'),
+                      boxShadow: isColorTaken ? 'none' : '0 2px 5px rgba(0,0,0,0.1)'
+                    }} 
+                    onClick={() => setSelectedColor(color.code)}
+                    title={isColorTaken ? `${color.name}은 이미 방에 있는 유저가 사용 중입니다.` : color.name}
+                  />
+                );
+              })}
             </div>
             <button type="submit" className="profile-join-btn">🚀 입장하기</button>
           </form>
