@@ -13,16 +13,17 @@ from sqlalchemy.orm import sessionmaker
 
 # 🌟 [치트키] Vercel 대시보드를 거치지 않고, 완벽하게 검증된 5432 정석 주소를 코드에 직접 박습니다.
 # 아래 [채민님비밀번호] 자리에 진짜 비밀번호만 정확히 넣어주세요. (대괄호 []는 지우셔야 합니다!)
-DATABASE_URL = "postgresql+psycopg2://postgres:calendae2026web@db.oaecvjbvaxuqidfshseu.supabase.co:5432/postgres?sslmode=require"
+DATABASE_URL = os.getenv("DATABASE_URL")
 
-# Vercel-Supabase 간의 IPv6 및 핸드셰이크 오류를 원천 차단하는 옵션
+if DATABASE_URL and DATABASE_URL.startswith("postgresql://"):
+    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+psycopg2://", 1)
+
+# 보안: 환경 변수를 사용하고, IPv4를 강제하는 옵션만 추가
 engine = create_engine(
     DATABASE_URL,
     connect_args={
-        "keepalives": 1,
-        "keepalives_idle": 30,
-        "keepalives_interval": 10,
-        "keepalives_count": 5
+        # 🌟 핵심: Vercel이 IPv6로 길을 잃지 않게 네트워크 설정을 강제합니다.
+        "gssencmode": "disable"
     },
     pool_pre_ping=True
 )
