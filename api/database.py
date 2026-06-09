@@ -17,7 +17,12 @@ if DATABASE_URL and DATABASE_URL.startswith("postgresql://"):
     DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+psycopg2://", 1)
 
 # 🌟 [수정] Supabase는 SQLite가 아니므로 connect_args={"check_same_thread": False} 옵션을 지워야 합니다.
-engine = create_engine(DATABASE_URL)
+# Vercel 서버리스 환경에서 커넥션 찌꺼기가 남지 않도록 풀링 시스템을 끄거나 최적화합니다.
+engine = create_engine(
+    DATABASE_URL,
+    pool_pre_ping=True,
+    pool_recycle=300
+)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
