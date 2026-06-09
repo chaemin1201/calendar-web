@@ -129,7 +129,7 @@ def create_room(room: RoomCreate):
     
     # 2. Supabase API로 직접 데이터 삽입
     # 이제 DB 엔진을 거치지 않으므로 에러가 날 곳이 없습니다!
-    response = supabase.table("rooms").insert({
+    response = supabase.table("room").insert({
         "room_id": room_code,
         "room_name": room.room_name
     }).execute()
