@@ -129,7 +129,7 @@ def create_room(room: RoomCreate):
     
     # 2. Supabase API를 사용하여 데이터 삽입
     # (주의: room_id 컬럼이 Supabase 테이블에도 있어야 합니다)
-    data = supabase.table("rooms").insert({
+    data = supabase_client.table("rooms").insert({ 
         "room_id": room_code, 
         "room_name": room.room_name
     }).execute()
