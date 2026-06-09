@@ -26,7 +26,6 @@ engine = create_engine(
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
-
 class Room(Base):
     __tablename__ = "rooms"
     room_id = Column(String, primary_key=True, index=True)
