@@ -13,17 +13,17 @@ load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 
-# 🌟 가장 안전하게 문자열 앞부분만 드라이버 주소로 교체하는 방식
-if DATABASE_URL and DATABASE_URL.startswith("postgresql://"):
-    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+psycopg2://", 1)
-    
-# 🌟 [수정] Supabase는 SQLite가 아니므로 connect_args={"check_same_thread": False} 옵션을 지워야 합니다.
-# Vercel 서버리스 환경에서 커넥션 찌꺼기가 남지 않도록 풀링 시스템을 끄거나 최적화합니다.
+if DATABASE_URL:
+    if DATABASE_URL.startswith("postgresql://"):
+        # 주소 문자열을 건드리지 않고 앞에 드라이버 명만 깔끔하게 붙여줍니다.
+        DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+psycopg2://", 1)
+
+# 엔진 생성
 engine = create_engine(
     DATABASE_URL,
-    pool_pre_ping=True,
-    pool_recycle=300
+    pool_pre_ping=True  # 6543 풀러 연결을 안정적으로 유지해주는 필수 옵션
 )
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
