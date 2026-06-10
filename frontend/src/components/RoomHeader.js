@@ -283,7 +283,10 @@ const styles = {
     boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
     width: '100%',
     display: 'flex',
-    alignItems: 'center',
+    alignItems: 'flex-start', // 내용이 길어질 때 위쪽 정렬
+    flexDirection: 'column', // 내용을 세로로 쌓기 위해 추가
+    height: 'auto',          // 🌟 높이 자동 조절
+    minHeight: '40px',       // 최소 높이 확보
     animation: 'modalFadeIn 0.3s ease-out'
   },
   noticeBadge: {
