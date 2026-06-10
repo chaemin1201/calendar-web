@@ -38,7 +38,7 @@ function ScheduleDetailModal({
   const [eventChatInput, setEventChatInput] = useState('');
 
   const isInitialMount = useRef(true);
-  // 🌟 [추가] 파일 업로드 중 자동 저장 디바운스가 실행되어 상태가 꼬이는 것을 막는 락(Lock) 변수
+  // 🌟 파일 업로드 중 자동 저장 디바운스가 실행되어 상태가 꼬이는 것을 막는 락(Lock) 변수
   const isUploading = useRef(false);
 
   // 새 채팅이 올 때마다 톡룸 하단으로 자동 스크롤
@@ -46,7 +46,7 @@ function ScheduleDetailModal({
     eventChatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [eventChats]);
 
-  // 디바운스 자동 저장 기능 수정 (락 메커니즘 적용)
+  // 디바운스 자동 저장 기능 (락 메커니즘 적용)
   useEffect(() => {
     if (isInitialMount.current) {
       isInitialMount.current = false;
@@ -85,9 +85,9 @@ function ScheduleDetailModal({
   }, [memoInput, selectedEventId, API_BASE_URL, roomId, setSelectedEventData, setSchedules]);
 
 
-  // 🌟 [정밀 수정] 파일 첨부 핸들러 고도화 (이벤트 버블링 완전 차단 및 무반응 버그 해결)
+  // 🌟 [수정] 백엔드 응답 구조(data.memo_file_url 최상위 추출)를 반영한 파일 첨부 핸들러
   const handleMemoFileChange = async (e) => {
-    e.stopPropagation(); // 이벤트가 상위 레이아웃(모달)으로 전파되어 닫히거나 씹히는 현상 방지
+    e.stopPropagation(); // 이벤트 버블링 방지
     
     const file = e.target.files?.[0];
     if (!file || !selectedEventId) return;
@@ -114,18 +114,28 @@ function ScheduleDetailModal({
 
       if (res.ok) {
         const data = await res.json();
-        // 백엔드에서 내려준 새 파일 URL 반영 및 전체 일정 리스트 동기화
-        setSelectedEventData(prev => ({ ...prev, memo_file_url: data.memo_file_url }));
-        setSchedules(prev => prev.map(s => (s.id === selectedEventId || s._id === selectedEventId) ? { ...s, memo_file_url: data.memo_file_url } : s));
-        alert("📎 공유 메모장에 파일이 성공적으로 첨부되었습니다!");
+        console.log("백엔드 파일 업로드 응답 데이터:", data);
+        
+        // 백엔드가 객체 최상위에 바로 내려주는 주소(data.memo_file_url) 매핑
+        const fileUrl = data.memo_file_url;
+
+        if (fileUrl) {
+          // 백엔드에서 내려준 새 파일 URL 반영 및 전체 일정 리스트 동기화
+          setSelectedEventData(prev => ({ ...prev, memo_file_url: fileUrl }));
+          setSchedules(prev => prev.map(s => (s.id === selectedEventId || s._id === selectedEventId) ? { ...s, memo_file_url: fileUrl } : s));
+          alert("📎 공유 메모장에 파일이 성공적으로 첨부되었습니다!");
+        } else {
+          console.error("응답 에러 구조:", data);
+          alert("서버 응답에서 파일 주소(memo_file_url)를 찾을 수 없습니다.");
+        }
       } else {
-        alert("파일 업로드에 실패했습니다. 서버 상태를 확인해 주세요.");
+        alert(`파일 업로드에 실패했습니다. (에러 코드: ${res.status})`);
       }
     } catch (err) {
       console.error(err);
       alert("파일 통신 중 오류가 발생했습니다.");
     } finally {
-      // 업로드 완료 후 락 해제 및 인풋 초기화(동일 파일 재선택 가능하도록)
+      // 업로드 완료 후 락 해제 및 인풋 초기화
       isUploading.current = false;
       e.target.value = '';
     }
@@ -329,16 +339,15 @@ function ScheduleDetailModal({
               </div>
             </div>
 
-            {/* 공유 메모장 레이아웃 고도화 */}
+            {/* 공유 메모장 레이아웃 구역 */}
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '5px', minHeight: '180px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#57606f' }}>📍 공유 메모장</label>
                 
-                {/* 🌟 [UX 보정] HTML 기본 매핑 구조 버그 해결을 위해 htmlFor 바인딩 선언 */}
                 <label 
                   htmlFor="memo-file-hidden-input"
                   style={{ fontSize: '11px', background: '#f1f2f6', border: '1px solid #ced6e0', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', color: '#57606f', fontWeight: 'bold' }}
-                  onClick={(e) => e.stopPropagation()} // 라벨 자체 클릭 전파 방지
+                  onClick={(e) => e.stopPropagation()} 
                 >
                   📎 파일 첨부
                 </label>
@@ -357,13 +366,14 @@ function ScheduleDetailModal({
                 style={{ flex: 1, padding: '12px', borderRadius: '6px', border: '1px solid #ced6e0', resize: 'none', fontSize: '13px', lineHeight: '1.5', outline: 'none', background: '#fdfdfd' }}
               />
 
-              {/* 📎 메모용 첨부파일 링크 뷰어 및 🗑️ 삭제 연동 레이아웃 */}
+              {/* 📎 파일 URL 뷰어 레이아웃 고도화 및 버그 수정 */}
               {selectedEventData.memo_file_url && (
                 <div style={{ marginTop: '5px', background: '#f1f3f5', padding: '6px 10px', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden', flex: 1 }}>
                     <span style={{ fontSize: '12px', color: '#2f3542', flexShrink: 0 }}>📁 첨부 파일:</span>
+                    {/* 🌟 [버그 수정]: 백엔드에서 Supabase Public URL(https://...)을 완전히 조립해서 주므로 API_BASE_URL을 더이상 중복 서술하지 않습니다. */}
                     <a 
-                      href={`${API_BASE_URL}${selectedEventData.memo_file_url}`} 
+                      href={selectedEventData.memo_file_url} 
                       target="_blank" 
                       rel="noopener noreferrer" 
                       style={{ fontSize: '12px', color: '#1e90ff', fontWeight: 'bold', textDecoration: 'underline', wordBreak: 'break-all', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
@@ -376,18 +386,9 @@ function ScheduleDetailModal({
                     type="button"
                     onClick={() => handleDeleteTarget('file', selectedEventId)}
                     style={{
-                      background: 'none',
-                      border: 'none',
-                      color: '#ff4757',
-                      fontSize: '12px',
-                      fontWeight: 'bold',
-                      cursor: 'pointer',
-                      padding: '2px 6px',
-                      borderRadius: '4px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '2px',
-                      flexShrink: 0
+                      background: 'none', border: 'none', color: '#ff4757', fontSize: '12px', fontWeight: 'bold',
+                      cursor: 'pointer', padding: '2px 6px', borderRadius: '4px', display: 'flex',
+                      alignItems: 'center', gap: '2px', flexShrink: 0
                     }}
                     title="첨부 파일 삭제"
                   >
