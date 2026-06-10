@@ -158,7 +158,6 @@ function MainHome() {
                     <span>📂</span> <strong>{room.name || room.id}</strong>
                     <span style={{ fontSize: '11px', color: '#a4b0be', marginLeft: '8px' }}>({room.id})</span>
                   </div>
-                  <button type="button" className="room-delete-list-btn" onClick={e => handleRemoveRoomHistory(e, room.id)}>✕</button>
                 </li>
               ))}
             </ul>
