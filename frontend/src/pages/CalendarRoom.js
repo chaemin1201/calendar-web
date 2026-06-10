@@ -331,88 +331,94 @@ function CalendarRoom() {
   }
 
   return (
-    /* 🌟 [수정] ref={layoutRef} 를 추가하여 스크롤 위치를 고정 추적할 수 있도록 바인딩 */
-    <div ref={layoutRef} className="app-container max-fluid-layout">
+    /* 최상단 컨테이너: 가로 스크롤 시 위치를 기억할 layoutRef 바인딩 */
+    <div ref={layoutRef} className="app-container max-fluid-layout" style={{ width: '100%', overflowX: 'auto' }}>
       
-      {/* 상단 네비게이션 바 */}
-      <div className="room-top-nav-bar">
-        <button className="nav-action-btn nav-home-btn" onClick={() => navigate('/')}>
-          🏠 처음화면으로
-        </button>
+      {/* 메인 대시보드 플렉스 로우 (기존 수평 배치 구조)
+        상단 바와 공지사항을 포함한 '모든 요소'가 이 안에서 정렬을 맞춥니다.
+      */}
+      <div className="main-dashboard-content-row" style={{ display: 'flex', flexDirection: 'column', gap: '15px', width: 'max-content', minWidth: '100%', paddingBottom: '10px' }}>
         
-        <button className="nav-action-btn nav-leave-btn" onClick={handleLeaveRoom}>
-          🚪 그룹 나가기
-        </button>
-      </div>
+        {/* 1. 상단 네비게이션 바 (이제 하단 요소들과 가로 시작점이 일치하며, 스크롤 시 함께 움직입니다) */}
+        <div className="room-top-nav-bar" style={{ width: '100%', display: 'flex', justifyContent: 'flex-end', gap: '10px', padding: '0 5px' }}>
+          <button className="nav-action-btn nav-home-btn" onClick={() => navigate('/')}>
+            🏠 처음화면으로
+          </button>
+          
+          <button className="nav-action-btn nav-leave-btn" onClick={handleLeaveRoom}>
+            🚪 그룹 나가기
+          </button>
+        </div>
 
-      {/* 공지사항 렌더링 영역 */}
-      {(() => {
-        const checkDate = new Date();
-        checkDate.setHours(0, 0, 0, 0);
+        {/* 2. 공지사항 렌더링 영역 (상단 바 아래에 너비를 맞춰 조화롭게 위치합니다) */}
+        {(() => {
+          const checkDate = new Date();
+          checkDate.setHours(0, 0, 0, 0);
 
-        const activeNotices = notices.filter(n => {
-          if (!n.start_date || !n.end_date) return true;
-          const start = new Date(n.start_date);
-          const end = new Date(n.end_date);
-          start.setHours(0, 0, 0, 0);
-          end.setHours(0, 0, 0, 0);
-          return checkDate >= start && checkDate <= end;
-        });
+          const activeNotices = notices.filter(n => {
+            if (!n.start_date || !n.end_date) return true;
+            const start = new Date(n.start_date);
+            const end = new Date(n.end_date);
+            start.setHours(0, 0, 0, 0);
+            end.setHours(0, 0, 0, 0);
+            return checkDate >= start && checkDate <= end;
+          });
 
-        return activeNotices.length > 0 ? (
-          <div style={{ backgroundColor: '#fff3cd', color: '#856404', padding: '12px 20px', borderBottom: '1px solid #ffeeba', zIndex: 100, maxHeight: '65px', overflowY: 'auto' }}>
-            {activeNotices.map((n, index) => (
-              <div key={n.id || n._id || index} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontWeight: 'bold', fontSize: '13px', margin: '4px 0', flexWrap: 'wrap' }}>
-                <span>📢 [공지] {n.content}</span>
-                {n.start_date && n.end_date && (
-                  <span style={{ fontSize: '11px', color: '#d9534f', backgroundColor: '#fff', padding: '2px 6px', borderRadius: '4px', border: '1px solid #f5c6cb', fontWeight: 'normal' }}>
-                    {n.start_date} ~ {n.end_date}
-                  </span>
-                )}
-                <span style={{ fontSize: '11px', fontWeight: 'normal', color: '#666' }}>({n.writer || '익명'})</span>
-              </div>
-            ))}
+          return activeNotices.length > 0 ? (
+            <div style={{ backgroundColor: '#fff3cd', color: '#856404', padding: '12px 20px', border: '1px solid #ffeeba', borderRadius: '12px', zIndex: 100, maxHeight: '65px', overflowY: 'auto', width: '100%', boxSizing: 'border-box' }}>
+              {activeNotices.map((n, index) => (
+                <div key={n.id || n._id || index} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontWeight: 'bold', fontSize: '13px', margin: '4px 0', flexWrap: 'wrap' }}>
+                  <span>📢 [공지] {n.content}</span>
+                  {n.start_date && n.end_date && (
+                    <span style={{ fontSize: '11px', color: '#d9534f', backgroundColor: '#fff', padding: '2px 6px', borderRadius: '4px', border: '1px solid #f5c6cb', fontWeight: 'normal' }}>
+                      {n.start_date} ~ {n.end_date}
+                    </span>
+                  )}
+                  <span style={{ fontSize: '11px', fontWeight: 'normal', color: '#666' }}>({n.writer || '익명'})</span>
+                </div>
+              ))}
+            </div>
+          ) : null;
+        })()}
+
+        {/* 3. 하단 실제 메인 스케줄러 및 대화방 영역 (원래 레이아웃 그대로 유지) */}
+        <div style={{ display: 'flex', gap: '20px', width: '100%', alignItems: 'flex-start' }}>
+          
+          {/* Left: 달력 및 타임라인 영역 */}
+          <div className="left-workspace-zone extended-view">
+            <RoomHeader 
+              roomId={roomId} roomName={roomName} myName={myName} myColor={myColor}
+              roomUsers={roomUsers} currentYear={currentYear} currentMonth={currentMonth}
+              setCurrentMonth={setCurrentMonth} API_BASE_URL={API_BASE_URL} fetchRoomData={fetchRoomData}
+              selectedDate={selectedDate} timelineClickInfo={timelineClickInfo} setTimelineClickInfo={setTimelineClickInfo}
+            />
+            <div className="calendar-and-timeline-flex">
+              <CalendarBoard 
+                currentYear={currentYear} currentMonth={currentMonth} schedules={schedules}
+                selectedDate={selectedDate} setSelectedDate={setSelectedDate}
+                isMatchDate={isMatchDate} openSplitViewPrompt={openSplitViewPrompt}
+                handleDeleteTarget={handleDeleteTarget} 
+              />
+              <TimeLineSide 
+                roomId={roomId}
+                selectedDateEvents={selectedDateEvents} openSplitViewPrompt={openSplitViewPrompt}
+                setSchedules={setSchedules} API_BASE_URL={API_BASE_URL} fetchRoomData={fetchRoomData}
+                onCellClick={setTimelineClickInfo}
+              />
+            </div>
           </div>
-        ) : null;
-      })()}
 
-      {/* 메인 대시보드 플렉스 로우 */}
-      <div className="main-dashboard-content-row">
-        
-        {/* Left: 달력 및 타임라인 영역 */}
-        <div className="left-workspace-zone extended-view">
-          <RoomHeader 
-            roomId={roomId} roomName={roomName} myName={myName} myColor={myColor}
-            roomUsers={roomUsers} currentYear={currentYear} currentMonth={currentMonth}
-            setCurrentMonth={setCurrentMonth} API_BASE_URL={API_BASE_URL} fetchRoomData={fetchRoomData}
-            selectedDate={selectedDate} timelineClickInfo={timelineClickInfo} setTimelineClickInfo={setTimelineClickInfo}
-          />
-          <div className="calendar-and-timeline-flex">
-            <CalendarBoard 
-              currentYear={currentYear} currentMonth={currentMonth} schedules={schedules}
-              selectedDate={selectedDate} setSelectedDate={setSelectedDate}
-              isMatchDate={isMatchDate} openSplitViewPrompt={openSplitViewPrompt}
+          {/* Right: 대화창 영역 */}
+          <div className="right-communication-sidebar">
+            <ChatSidebar 
+              roomId={roomId} myName={myName} myColor={myColor} notices={notices}
+              roomChats={roomChats} API_BASE_URL={API_BASE_URL} fetchRoomData={fetchRoomData}
               handleDeleteTarget={handleDeleteTarget} 
             />
-            <TimeLineSide 
-              roomId={roomId}
-              selectedDateEvents={selectedDateEvents} openSplitViewPrompt={openSplitViewPrompt}
-              setSchedules={setSchedules} API_BASE_URL={API_BASE_URL} fetchRoomData={fetchRoomData}
-              onCellClick={setTimelineClickInfo}
-            />
           </div>
-        </div>
 
-        {/* Right: 대화창 영역 */}
-        <div className="right-communication-sidebar">
-          <ChatSidebar 
-            roomId={roomId} myName={myName} myColor={myColor} notices={notices}
-            roomChats={roomChats} API_BASE_URL={API_BASE_URL} fetchRoomData={fetchRoomData}
-            handleDeleteTarget={handleDeleteTarget} 
-          />
-        </div>
-
-      </div>
+        </div> {/* 하단 실제 메인 영역 닫기 */}
+      </div> {/* .main-dashboard-content-row 닫기 */}
 
       {/* 일정 상세 확장 모달 */}
       {isSplitModalOpen && selectedEventData && (
