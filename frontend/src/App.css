@@ -15,6 +15,7 @@ html, body, #root {
   width: 100%;
   height: 100vh;
   overflow: hidden; 
+  position: fixed; /* 🌟 모바일/패드 환경에서 전체 화면이 밀리는 현상 방지 */
 }
 
 /* ==========================================================================
@@ -50,13 +51,14 @@ html, body, #root {
   flex-direction: column;
 }
 
-/* 🌟 [추가/수정] 좌측 작업 영역과 우측 대화창을 나란히 가로 배치하는 부모 flex wrapper가 있다면 아래 스타일을 적용해 주세요. */
+/* 좌측 작업 영역과 우측 대화창을 나란히 가로 배치하는 부모 flex wrapper */
 .main-dashboard-content-row {
   display: flex;
   flex: 1;
   width: 100%;
   height: 100%;
   min-height: 0;
+  min-width: 0;       /* 🌟 자식 요소가 부모 박스 밖으로 튀어나가는 현상 방지 */
   gap: 20px;
   padding: 15px;
   box-sizing: border-box;
@@ -67,7 +69,8 @@ html, body, #root {
   display: flex; 
   flex-direction: column; 
   gap: 15px; 
-  flex: 2.3;                  /* 🌟 대화창이 넓어짐에 따라 상대적 비율 조정 */
+  flex: 1;            /* 🌟 우측 대화창을 제외한 남은 여백을 유연하게 채움 */
+  min-width: 550px;   /* 🌟 화면이 아주 작아져도 달력이 깨지지 않는 최소 가로폭 보장 */
   height: 100%;
   min-height: 0;
 }
@@ -139,6 +142,7 @@ html, body, #root {
   cursor: pointer; 
   border: 2px solid transparent;
   overflow: hidden;
+  word-break: break-all; /* 🌟 셀 내부 긴 텍스트 줄바꿈 방어 */
 }
 .calendar-cell.expanded-grid-cell:hover { background: #f1f2f6; transform: translateY(-2px); }
 .selected-day { border-color: #1e90ff; background: #e8f4ff !important; }
@@ -272,7 +276,7 @@ html, body, #root {
 .combo-dropdown-item:hover { background: #f1f2f6; }
 .form-submit-btn { padding: 8px 16px; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; }
 
-/* 📷 이미지 파일 업로드 UI */
+/* 이미지 파일 업로드 UI */
 .file-upload-wrapper { display: flex; align-items: center; gap: 8px; }
 .custom-file-label { background: #e4e7ed; color: #2f3542; padding: 8px 12px; border-radius: 6px; font-size: 12px; font-weight: bold; cursor: pointer; transition: background 0.2s; }
 .custom-file-label:hover { background: #dcdde1; }
@@ -281,7 +285,7 @@ html, body, #root {
 /* ==========================================================================
    7. 우측 실시간 사이드바 (ChatSidebar)
    ========================================================================== */
-.right-communication-sidebar { 
+.right-communication-sidebar { /* 🌟 누락되었던 클래스 선택자 점(.) 완벽 추가 */
   background: white; 
   border-radius: 12px; 
   box-shadow: 0 4px 12px rgba(0,0,0,0.05); 
@@ -292,6 +296,11 @@ html, body, #root {
   height: 100%; 
   min-height: 0;
   overflow: hidden;
+
+  /* 🌟 대화창이 좌측 영역을 침범하지 못하도록 규격 고정 */
+  width: 350px;       /* 🌟 PC/노트북 환경에서 대화창이 유지할 고정 너비 */
+  max-width: 100%;    /* 🌟 모바일 환경 대응 */
+  flex-shrink: 0;     /* 🌟 화면이 아무리 찌그러져도 350px 이하로 줄어들지 않음 */
 }
 .right-communication-sidebar h5 { font-size: 14px; color: #495057; border-left: 3px solid #1e90ff; padding-left: 8px; margin-bottom: 8px; }
 

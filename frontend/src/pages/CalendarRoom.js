@@ -148,12 +148,10 @@ function CalendarRoom() {
 
     try {
       if (type === 'leave') {
-        // 1. 현재 내 user_id 찾기
         const myUser = roomUsers.find(u => u.user_name === myName);
         const myUserId = myUser ? myUser.id : null;
 
         if (myUserId) {
-          // 백엔드 API 호출하여 DB에서 유저 제거
           await fetch(`${API_BASE_URL}/api/rooms/${roomId}/users/${myUserId}`, { 
             method: 'DELETE' 
           });
@@ -162,22 +160,15 @@ function CalendarRoom() {
           return;
         }
 
-        // 2. 로컬 스토리지 정리 (해당 방 개별 프로필 데이터 삭제)
         localStorage.removeItem(`room_uname_${roomId}`);
         localStorage.removeItem(`room_color_${roomId}`);
         localStorage.removeItem(`room_name_${roomId}`);
       
-        // 🌟 3. [추가] 메인 홈 화면의 '참여 중인 방 목록' 저장 키에서도 현재 방 코드 제거
-        // 홈 화면 컴포넌트에서 사용하는 저장소 키 이름(예: 'joined_rooms' 혹은 'my_rooms' 등)에 맞게 확인해 보세요.
         const listKey = 'my_shared_calendars'; 
         const currentList = JSON.parse(localStorage.getItem(listKey) || '[]');
-        
         const updatedList = currentList.filter(room => String(room.id) !== String(roomId));
-        
-        // 갱신된 참여 목록을 로컬 스토리지에 재저장
         localStorage.setItem(listKey, JSON.stringify(updatedList));
 
-        // 4. 메인 화면으로 이동 (이제 목록에서 완전히 사라진 상태로 렌더링됩니다)
         navigate('/'); 
       }
       else if (type === 'notice' || type === 'schedule') {
@@ -260,7 +251,7 @@ function CalendarRoom() {
     .filter(s => isMatchDate(s.event_date, selectedDate))
     .sort((a, b) => (a.event_time || '').localeCompare(b.event_time || ''));
 
-if (!myName) {
+  if (!myName) {
     return (
       <div className="modal-overlay">
         <div className="modal-content-profile">
@@ -277,19 +268,15 @@ if (!myName) {
             />
             <div className="rainbow-palette-grid">
               {RAINBOW_COLORS.map(color => {
-                // 🌟 [추가] 현재 방 참여자들의 색상 중 현재 칩의 색상이 포함되어 있는지 판별
                 const isColorTaken = roomUsers.some(user => user.color_code === color.code);
-
                 return (
                   <button 
                     key={color.code} 
                     type="button" 
-                    // 🌟 이미 선택된 색상일 경우 클릭 불가능하도록 비활성화
                     disabled={isColorTaken}
                     className={`rainbow-chip-btn ${selectedColor === color.code ? 'active-chip' : ''}`} 
                     style={{ 
                       backgroundColor: color.code,
-                      // 🌟 이미 선택된 색상은 흐릿하게 투명도를 주고, 마우스 커서를 금지 모양으로 설정
                       opacity: isColorTaken ? 0.25 : 1,
                       cursor: isColorTaken ? 'not-allowed' : 'pointer',
                       border: isColorTaken ? '1px dashed #aaa' : (selectedColor === color.code ? '3px solid #333' : 'none'),
@@ -322,19 +309,18 @@ if (!myName) {
         </button>
       </div>
 
-      {/* 🌟 수정된 공지사항 렌더링 영역 */}
+      {/* 공지사항 렌더링 영역 */}
       {(() => {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0); // 시간 제외, 날짜만 비교
+        const checkDate = new Date();
+        checkDate.setHours(0, 0, 0, 0);
 
-        // 기간 내에 있는 공지만 필터링
         const activeNotices = notices.filter(n => {
-          if (!n.start_date || !n.end_date) return true; // 기간 없으면 항상 노출
+          if (!n.start_date || !n.end_date) return true;
           const start = new Date(n.start_date);
           const end = new Date(n.end_date);
           start.setHours(0, 0, 0, 0);
           end.setHours(0, 0, 0, 0);
-          return today >= start && today <= end;
+          return checkDate >= start && checkDate <= end;
         });
 
         return activeNotices.length > 0 ? (
@@ -354,8 +340,20 @@ if (!myName) {
         ) : null;
       })()}
 
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-        <div className="left-workspace-zone extended-view" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflowY: 'auto', padding: '15px' }}>
+      {/* 메인 대시보드 플렉스 로우 */}
+      <div className="main-dashboard-content-row" style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+        
+        {/* Left: 달력 및 타임라인 영역 */}
+        <div 
+          className="left-workspace-zone extended-view" 
+          style={{ 
+            flex: 1, 
+            display: 'flex', 
+            flexDirection: 'column', 
+            overflowY: 'auto', 
+            padding: '15px'
+          }}
+        >
           <RoomHeader 
             roomId={roomId} roomName={roomName} myName={myName} myColor={myColor}
             roomUsers={roomUsers} currentYear={currentYear} currentMonth={currentMonth}
@@ -378,13 +376,18 @@ if (!myName) {
           </div>
         </div>
 
-        <ChatSidebar 
-          roomId={roomId} myName={myName} myColor={myColor} notices={notices}
-          roomChats={roomChats} API_BASE_URL={API_BASE_URL} fetchRoomData={fetchRoomData}
-          handleDeleteTarget={handleDeleteTarget} 
-        />
-      </div>
+        {/* Right: 대화창 영역 */}
+        <div className="right-communication-sidebar-container">
+          <ChatSidebar 
+            roomId={roomId} myName={myName} myColor={myColor} notices={notices}
+            roomChats={roomChats} API_BASE_URL={API_BASE_URL} fetchRoomData={fetchRoomData}
+            handleDeleteTarget={handleDeleteTarget} 
+          />
+        </div>
 
+      </div> {/* .main-dashboard-content-row 닫기 */}
+
+      {/* 일정 상세 확장 모달 */}
       {isSplitModalOpen && selectedEventData && (
         <ScheduleDetailModal 
           selectedEventData={selectedEventData} selectedEventId={selectedEventId}

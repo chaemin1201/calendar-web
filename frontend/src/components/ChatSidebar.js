@@ -23,7 +23,7 @@ function ChatSidebar({ roomId, myName, myColor, notices, roomChats, API_BASE_URL
   const [noticeInput, setNoticeInput] = useState('');
   const [chatInput, setChatInput] = useState('');
 
-  // 🌟 [추가] 공지사항 노출 시작일과 종료일 상태 관리 (기본 일주일 세팅)
+  // 🌟 공지사항 노출 시작일과 종료일 상태 관리 (기본 일주일 세팅)
   const [startDate, setStartDate] = useState(getTodayStr());
   const [endDate, setEndDate] = useState(getOneWeekLaterStr());
 
@@ -48,7 +48,7 @@ function ChatSidebar({ roomId, myName, myColor, notices, roomChats, API_BASE_URL
     e.preventDefault();
     if (!noticeInput.trim()) return;
     try {
-      // 🌟 [수정] 백엔드로 전송할 페이로드에 공지 노출 시작일/종료일 추가
+      // 🌟 백엔드로 전송할 페이로드에 공지 노출 시작일/종료일 추가
       const res = await fetch(`${API_BASE_URL}/api/rooms/${roomId}/notices`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -70,18 +70,30 @@ function ChatSidebar({ roomId, myName, myColor, notices, roomChats, API_BASE_URL
   };
 
   return (
-    <div className="right-communication-sidebar custom-enhanced-bar" style={{ width: '420px', display: 'flex', flexDirection: 'column', borderLeft: '1px solid #e4e7ed', padding: '15px', background: '#fff' }}>
+    <div 
+      className="right-communication-sidebar custom-enhanced-bar" 
+      style={{ 
+        width: '100%',            // 🌟 고정 420px 제거, 부모가 정해준 너비에 맞춤
+        height: '100%', 
+        display: 'flex', 
+        flexDirection: 'column', 
+        borderLeft: '1px solid #e4e7ed', 
+        padding: '15px', 
+        background: '#fff',
+        boxSizing: 'border-box'   // 🌟 패딩으로 인해 너비가 늘어나는 것 방지
+      }}
+    >
       <div>
         <h5>📢 방 전체 공지사항</h5>
         <div style={{ background: '#ffffff', padding: '10px', borderRadius: '6px', border: '1px solid #ffe066', maxHeight: '180px', overflowY: 'auto', marginBottom: '10px', fontSize: '12px' }}>
-          {notices.length > 0 ? notices.slice().reverse().map((notice, idx) => {
+          {notices && notices.length > 0 ? notices.slice().reverse().map((notice, idx) => {
             const nId = notice.id || notice._id;
             return (
               <div key={nId || idx} style={{ marginBottom: '8px', paddingBottom: '8px', borderBottom: '1px solid #f1f2f6', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
                   <span style={{ fontWeight: 'bold', color: '#ff4757' }}>[공지] </span>
                   <strong>{notice.content}</strong>
-                  {/* 🌟 [추가] 목록에서도 설정된 공지 기간이 보이도록 연동 */}
+                  {/* 🌟 목록에서도 설정된 공지 기간이 보이도록 연동 */}
                   {notice.start_date && notice.end_date && (
                     <div style={{ fontSize: '11px', color: '#a4b0be', marginTop: '2px' }}>
                       ⏳ {notice.start_date} ~ {notice.end_date}
@@ -97,7 +109,7 @@ function ChatSidebar({ roomId, myName, myColor, notices, roomChats, API_BASE_URL
           }) : <span style={{ color: '#a4b0be', fontStyle: 'italic' }}>등록된 공지사항이 없습니다.</span>}
         </div>
 
-        {/* 🌟 [수정] 기간 설정을 포함할 수 있도록 정돈된 공지 등록 폼 레이아웃 */}
+        {/* 🌟 기간 설정을 포함할 수 있도록 정돈된 공지 등록 폼 레이아웃 */}
         <form onSubmit={handleAddNotice} style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '15px' }}>
           <div style={{ display: 'flex', gap: '6px' }}>
             <input 
@@ -138,10 +150,11 @@ function ChatSidebar({ roomId, myName, myColor, notices, roomChats, API_BASE_URL
         </form>
       </div>
 
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', marginTop: '15px', overflow: 'hidden' }}>
+      {/* 🌟 minHeight: 0 속성을 주어 레이아웃 스크롤 안정화 */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', marginTop: '15px', overflow: 'hidden', minHeight: 0 }}>
         <h5>💬 실시간 전체 대화방</h5>
         <div className="messenger-chat-flow" style={{ flex: 1, overflowY: 'auto' }}>
-          {roomChats.map((chat, i) => (
+          {roomChats && roomChats.map((chat, i) => (
             <div key={i} className={`chat-bubble-row ${chat.writer === myName ? 'is-me' : ''}`}>
               <span className="chat-user-name" style={{ color: chat.color_code }}>{chat.writer}</span>
               <div className="chat-bubble-content">{chat.content}</div>
