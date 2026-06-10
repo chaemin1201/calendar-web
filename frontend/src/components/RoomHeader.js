@@ -140,20 +140,19 @@ function RoomHeader({
       {/* 📢 기간 내 유효한 공지사항 상단 배너 존 */}
       {activeNotices.length > 0 && (
         <div style={styles.noticeTopBanner}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%', overflow: 'hidden' }}>
-            <span style={styles.noticeBadge}>📢 중요공지</span>
-            <div style={{ flex: 1, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
-              {activeNotices.map((notice, idx) => (
-                <span key={notice.id || idx} style={{ marginRight: '30px', fontSize: '13px', fontWeight: '700', color: '#2f3542' }}>
-                  <strong>[{notice.writer}]</strong> {notice.content}
-                  {notice.start_date && notice.end_date && (
-                    <span style={{ fontSize: '11px', color: '#747d8c', marginLeft: '6px', fontWeight: 'normal' }}>
-                      ({notice.start_date} ~ {notice.end_date})
-                    </span>
-                  )}
-                </span>
-              ))}
-            </div>
+          <span style={styles.noticeBadge}>📢 중요공지</span>
+          {/* 공지들을 세로로 나열하는 컨테이너 */}
+          <div style={{ display: 'flex', flexDirection: 'column', width: '100%', marginTop: '8px' }}>
+            {activeNotices.map((notice, idx) => (
+              <span key={notice.id || idx} style={{ marginBottom: '5px', fontSize: '13px', fontWeight: '700', color: '#2f3542' }}>
+                <strong>[{notice.writer}]</strong> {notice.content}
+                {notice.start_date && notice.end_date && (
+                  <span style={{ fontSize: '11px', color: '#747d8c', marginLeft: '6px', fontWeight: 'normal' }}>
+                    ({notice.start_date} ~ {notice.end_date})
+                  </span>
+                )}
+              </span>
+            ))}
           </div>
         </div>
       )}
@@ -282,11 +281,13 @@ const styles = {
     marginBottom: '15px',
     boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
     width: '100%',
+    
+    // 🌟 아래 내용으로 교체/추가하세요
     display: 'flex',
-    alignItems: 'flex-start', // 내용이 길어질 때 위쪽 정렬
-    flexDirection: 'column', // 내용을 세로로 쌓기 위해 추가
-    height: 'auto',          // 🌟 높이 자동 조절
-    minHeight: '40px',       // 최소 높이 확보
+    flexDirection: 'column', // 가로 나열을 세로 쌓기로 변경
+    alignItems: 'flex-start', // 왼쪽 정렬
+    height: 'auto',          // 내용에 따라 높이 자동 조절
+    overflowY: 'visible',    // 스크롤바가 생기지 않게 함
     animation: 'modalFadeIn 0.3s ease-out'
   },
   noticeBadge: {
