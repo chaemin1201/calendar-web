@@ -88,35 +88,12 @@ function MainHome() {
     setMyRooms([...arr]);
   };
 
-  // MainHome.js의 handleRemoveRoomHistory 함수를 이렇게 수정하세요
-  const handleRemoveRoomHistory = async (e, id) => {
+  const handleRemoveRoomHistory = (e, id) => {
     e.stopPropagation();
-
-    // 사용자에게 강력한 경고 메시지 전달
-    if (!window.confirm('정말로 이 공간을 서버에서 완전히 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.')) return;
-
-    try {
-      // 🌟 서버의 delete_room 엔드포인트(/api/rooms/{room_id})를 호출
-      const response = await fetch(`${API_BASE_URL}/api/rooms/${id}`, {
-        method: 'DELETE', 
-        headers: { 'Content-Type': 'application/json' }
-      });
-
-      if (response.ok) {
-        // 서버 삭제 성공 시 프론트엔드 목록에서도 제거
-        const updated = myRooms.filter(r => r.id !== id);
-        setMyRooms(updated);
-        localStorage.setItem('my_shared_calendars', JSON.stringify(updated));
-        localStorage.removeItem(`room_name_${id}`);
-      
-        alert("공간과 관련된 모든 데이터가 서버에서 삭제되었습니다.");
-      } else {
-        alert("서버에서 공간을 삭제하는 데 실패했습니다. (권한이 없거나 서버 오류)");
-      }
-    } catch (err) {
-      console.error("삭제 실패:", err);
-      alert("서버 통신 중 오류가 발생했습니다.");
-    }
+    if (!window.confirm('방을 대시보드에서 제거하시겠습니까?')) return;
+    const updated = myRooms.filter(r => r.id !== id);
+    setMyRooms(updated);
+    localStorage.setItem('my_shared_calendars', JSON.stringify(updated));
   };
 
   return (
@@ -158,6 +135,7 @@ function MainHome() {
                     <span>📂</span> <strong>{room.name || room.id}</strong>
                     <span style={{ fontSize: '11px', color: '#a4b0be', marginLeft: '8px' }}>({room.id})</span>
                   </div>
+                  <button type="button" className="room-delete-list-btn" onClick={e => handleRemoveRoomHistory(e, room.id)}>✕</button>
                 </li>
               ))}
             </ul>
