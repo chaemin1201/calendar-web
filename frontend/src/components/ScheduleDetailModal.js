@@ -47,43 +47,69 @@ function ScheduleDetailModal({
   }, [eventChats]);
 
   // 디바운스 자동 저장 기능 (락 메커니즘 적용)
-  useEffect(() => {
-    if (isInitialMount.current) {
-      isInitialMount.current = false;
-      return;
-    }
+  // 디바운스 자동 저장 기능 (락 메커니즘 및 파일 주소 유지 보정)
+useEffect(() => {
+  if (isInitialMount.current) {
+    isInitialMount.current = false;
+    return;
+  }
 
-    const delayDebounceTimer = setTimeout(async () => {
-      if (!selectedEventId || isUploading.current) return; // 🌟 파일 업로드 중이면 패스
+  const delayDebounceTimer = setTimeout(async () => {
+    if (!selectedEventId || isUploading.current) return; // 파일 업로드 중이면 패스
+    
+    try {
+      const formData = new FormData();
+      formData.append('memo', memoInput);
       
-      try {
-        const formData = new FormData();
-        formData.append('memo', memoInput);
-        
-        let res = await fetch(`${API_BASE_URL}/api/schedules/${selectedEventId}/memo`, {
+      let res = await fetch(`${API_BASE_URL}/api/schedules/${selectedEventId}/memo`, {
+        method: 'PATCH',
+        body: formData
+      });
+
+      if (!res.ok && res.status === 404 && roomId) {
+        res = await fetch(`${API_BASE_URL}/api/rooms/${roomId}/schedules/${selectedEventId}/memo`, {
           method: 'PATCH',
           body: formData
         });
-
-        if (!res.ok && res.status === 404 && roomId) {
-          res = await fetch(`${API_BASE_URL}/api/rooms/${roomId}/schedules/${selectedEventId}/memo`, {
-            method: 'PATCH',
-            body: formData
-          });
-        }
-
-        if (res.ok) {
-          setSelectedEventData(prev => ({ ...prev, memo: memoInput, note: memoInput, description: memoInput }));
-          setSchedules(prev => prev.map(s => (s.id === selectedEventId || s._id === selectedEventId) ? { ...s, memo: memoInput, note: memoInput, description: memoInput } : s));
-        }
-      } catch (e) {
-        console.error(e);
       }
-    }, 800);
 
-    return () => clearTimeout(delayDebounceTimer);
-  }, [memoInput, selectedEventId, API_BASE_URL, roomId, setSelectedEventData, setSchedules]);
+      if (res.ok) {
+        const responseData = await res.json();
+        // 🌟 백엔드가 반환한 최신 파일 URL 주소 추출 (안전장치 포함)
+        const currentFileUrl = 
+          responseData.memo_file_url || 
+          responseData.data?.memo_file_url || 
+          responseData.result?.memo_file_url ||
+          responseData.schedule?.memo_file_url;
 
+        // 🌟 메모 텍스트와 함께, 기존/새로운 파일 URL이 날아가지 않도록 안전하게 동기화
+        setSelectedEventData(prev => ({ 
+          ...prev, 
+          memo: memoInput, 
+          note: memoInput, 
+          description: memoInput,
+          memo_file_url: currentFileUrl || prev.memo_file_url // 파일 주소 유지 락
+        }));
+
+        setSchedules(prev => prev.map(s => 
+          (s.id === selectedEventId || s._id === selectedEventId) 
+            ? { 
+                ...s, 
+                memo: memoInput, 
+                note: memoInput, 
+                description: memoInput,
+                memo_file_url: currentFileUrl || s.memo_file_url 
+              } 
+            : s
+        ));
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }, 800);
+
+  return () => clearTimeout(delayDebounceTimer);
+}, [memoInput, selectedEventId, API_BASE_URL, roomId, setSelectedEventData, setSchedules]);
 
   // 🌟 [수정 완료] 백엔드 응답의 다양한 중첩 객체 깊이를 모두 방어하는 파일 첨부 핸들러
   const handleMemoFileChange = async (e) => {

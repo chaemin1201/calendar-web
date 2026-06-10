@@ -463,7 +463,7 @@ async def create_schedule_ai(
 @app.patch("/api/schedules/{schedule_id}/memo")
 async def update_schedule_memo(
     schedule_id: int,
-    memo: str = Form(...),
+    memo: str = Form(""), # 프론트에서 빈 값으로 들어와도 에러 안 나게 방어
     file: Optional[UploadFile] = File(None),
 ):
     sch_check = supabase.table("schedule").select("*").eq("id", schedule_id).execute()
@@ -473,7 +473,7 @@ async def update_schedule_memo(
     sch = sch_check.data[0]
     memo_file_url = sch.get("memo_file_url") # 기존 파일 주소 로드
 
-    # 🌟 새 파일이 실제로 업로드되어 들어온 경우에만 스토리지 교체 작업을 수행합니다.
+    # 새 파일이 실제로 업로드되어 들어온 경우에만 스토리지 교체 작업을 수행합니다.
     if file and file.filename and SUPABASE_URL and SUPABASE_ANON_KEY:
         # 기존 파일이 있다면 버킷에서 물리 삭제
         if memo_file_url:
@@ -482,28 +482,48 @@ async def update_schedule_memo(
         random_prefix = random.randint(1000, 9999)
         clean_filename = f"memo_{random_prefix}_{file.filename.replace(' ', '_')}"
 
+        # 🌟 [추가된 부분] PDF/HWP 확장자를 감지하여 올바른 Content-Type을 강제로 매핑합니다.
+        content_type = file.content_type
+        lower_filename = file.filename.lower()
+        
+        if lower_filename.endswith('.pdf'):
+            content_type = "application/pdf"
+        elif lower_filename.endswith('.hwp'):
+            content_type = "application/x-hwp"  # 아래한글 표준 MIME 타입
+        elif not content_type:
+            content_type = "application/octet-stream" # 타입을 알 수 없는 경우 기본값
+
         try:
             file_bytes = await file.read()
             supabase_client.storage.from_("uploaded_images").upload(
                 path=clean_filename,
                 file=file_bytes,
-                file_options={"content-type": file.content_type}
+                file_options={"content-type": content_type} # 🌟 보정된 content_type 적용
             )
             memo_file_url = supabase_client.storage.from_("uploaded_images").get_public_url(clean_filename)
         except Exception as e:
             print(f"⚠️ 메모 파일 클라우드 스토리지 저장 실패: {e}")
 
     # 파일이 넘어오지 않은 순수 자동 분할 저장 타이밍엔 기존 memo_file_url 주소를 그대로 유지하여 업데이트
+    final_memo = memo if memo.strip() else sch.get("memo", "")
+
     response = supabase.table("schedule").update({
-        "memo": memo,
+        "memo": final_memo,
         "memo_file_url": memo_file_url
     }).eq("id", schedule_id).execute()
     
     updated_sch = response.data[0] if response.data else {}
+    
+    # 🌟 [수정된 부분] 프론트엔드가 data(2층) 구조를 찾아도 에러가 안 나도록 규격을 맞춰서 리턴합니다.
     return {
         "status": "updated",
-        "memo": updated_sch.get("memo"),
-        "memo_file_url": updated_sch.get("memo_file_url"),
+        "data": {
+            "id": schedule_id,
+            "memo": updated_sch.get("memo"),
+            "memo_file_url": updated_sch.get("memo_file_url")
+        },
+        "memo": updated_sch.get("memo"),          # 혹시 모를 하위 호환용 유지
+        "memo_file_url": updated_sch.get("memo_file_url") # 혹시 모를 하위 호환용 유지
     }
 
 
