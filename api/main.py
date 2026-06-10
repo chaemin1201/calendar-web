@@ -471,60 +471,36 @@ async def update_schedule_memo(
         raise HTTPException(status_code=404, detail="일정이 존재하지 않습니다.")
 
     sch = sch_check.data[0]
-    memo_file_url = sch.get("memo_file_url")
+    update_payload = {"memo": memo} # 기본 업데이트 데이터
 
-    if file and file.filename and SUPABASE_URL and SUPABASE_ANON_KEY:
-        if memo_file_url:
-            delete_storage_file(memo_file_url)
+    # 파일 업로드 로직
+    if file and file.filename:
+        # 기존 파일 삭제
+        if sch.get("memo_file_url"):
+            delete_storage_file(sch.get("memo_file_url"))
 
         random_prefix = random.randint(1000, 9999)
         clean_filename = f"memo_{random_prefix}_{file.filename.replace(' ', '_')}"
+        
+        # 파일 타입 결정
+        content_type = file.content_type or "application/octet-stream"
+        if file.filename.lower().endswith('.pdf'): content_type = "application/pdf"
+        elif file.filename.lower().endswith('.hwp'): content_type = "application/x-hwp"
 
-        # 🌟 PDF, HWP 확장자를 안정적으로 매핑하기 위한 Content-Type 분기
-        content_type = file.content_type
-        lower_filename = file.filename.lower()
-        if lower_filename.endswith('.pdf'):
-            content_type = "application/pdf"
-        elif lower_filename.endswith('.hwp'):
-            content_type = "application/x-hwp"
-        elif not content_type:
-            content_type = "application/octet-stream"
+        file_bytes = await file.read()
+        supabase_client.storage.from_("uploaded_images").upload(
+            path=clean_filename,
+            file=file_bytes,
+            file_options={"content-type": content_type}
+        )
+        update_data["memo_file_url"] = supabase_client.storage.from_("uploaded_images").get_public_url(clean_filename)
 
-        try:
-            file_bytes = await file.read()
+    supabase.table("schedule").update(update_data).eq("id", schedule_id).execute()
 
-            print("📤 업로드 시작:", file.filename)
-
-            result = supabase_client.storage.from_("uploaded_images").upload(
-                path=clean_filename,
-                file=file_bytes,
-                file_options={"content-type": content_type}
-            )
-
-            print("✅ 업로드 결과:", result)
-
-            memo_file_url = supabase_client.storage.from_("uploaded_images").get_public_url(clean_filename)
-
-            print("🔗 생성된 URL:", memo_file_url)
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
-
-    final_memo = memo if memo.strip() else sch.get("memo", "")
-
-    response = supabase.table("schedule").update({
-        "memo": memo,
-        "memo_file_url": memo_file_url
-    }).eq("id", schedule_id).execute()
-
-    print("업데이트 응답:", response.data)
-
-    return {
-        "status": "updated",
-        "id": schedule_id,
-        "memo": memo,
-        "memo_file_url": memo_file_url
-    }
+    # 5. [중요] 최신 데이터를 다시 조회해서 전체 반환 (필드 누락 방지)
+    final_res = supabase.table("schedule").select("*").eq("id", schedule_id).execute()
+    
+    return final_res.data[0]
 # 🌟 [추가] 방 하위 일정 메모 업데이트 전용 라우터 (이게 없어서 프론트가 방황하는 중입니다)
 @app.patch("/api/rooms/{room_id}/schedules/{schedule_id}/memo")
 async def update_room_schedule_memo(
