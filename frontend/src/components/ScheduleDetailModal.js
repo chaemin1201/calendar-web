@@ -106,7 +106,7 @@ useEffect(() => {
 
   return () => clearTimeout(delayDebounceTimer);
 
-// ✅ setter 함수 제거, selectedEventData.memo_file_url 대신 직접 값 추적
+// eslint-disable-next-line react-hooks/exhaustive-deps
 }, [memoInput, selectedEventId, API_BASE_URL, roomId]);
 
   // 🌟 [수정 완료] 백엔드 응답의 다양한 중첩 객체 깊이를 모두 방어하는 파일 첨부 핸들러
