@@ -62,7 +62,7 @@ function CalendarRoom() {
     setMyColor(localStorage.getItem(`room_color_${roomId}`) || null);
   }, [roomId]);
 
-  // 🌟 [최적화] 데이터 가져오기 로직 분리 및 불필요한 데이터 덮어쓰기 방지
+  // 데이터 가져오기 로직 분리 및 불필요한 데이터 덮어쓰기 방지
   const fetchRoomData = useCallback(async () => {
     try {
       // 스크롤 위치 사전 저장
@@ -98,7 +98,6 @@ function CalendarRoom() {
       }
       if (resChats.ok) {
         const nextChats = await resChats.json();
-        // 채팅방 스크롤 튕김 현상을 유발하지 않도록 변경된 내용이 있을 때만 업데이트
         setRoomChats(prev => prev.length !== nextChats.length ? nextChats : prev);
       }
 
@@ -161,7 +160,6 @@ function CalendarRoom() {
     return () => clearInterval(interval);
   }, [isSplitModalOpen, selectedEventId, fetchEventChats]);
 
-  // 🌟 컴포넌트 마운트 시 최초 1회 즉시 실행 후 3초 타이머 작동
   useEffect(() => {
     fetchRoomData();
     const interval = setInterval(fetchRoomData, 3000);
@@ -202,7 +200,7 @@ function CalendarRoom() {
         const listKey = 'my_shared_calendars'; 
         const currentList = JSON.parse(localStorage.getItem(listKey) || '[]');
         const updatedList = currentList.filter(room => String(room.id) !== String(roomId));
-        document.body.style.overflow = 'unset'; // 혹시 모를 고정 해제
+        document.body.style.overflow = 'unset';
         localStorage.setItem(listKey, JSON.stringify(updatedList));
 
         navigate('/'); 
@@ -331,15 +329,11 @@ function CalendarRoom() {
   }
 
   return (
-    /* 최상단 컨테이너: 가로 스크롤 시 위치를 기억할 layoutRef 바인딩 */
     <div ref={layoutRef} className="app-container max-fluid-layout" style={{ width: '100%', overflowX: 'auto' }}>
       
-      {/* 메인 대시보드 플렉스 로우 (기존 수평 배치 구조)
-        상단 바와 공지사항을 포함한 '모든 요소'가 이 안에서 정렬을 맞춥니다.
-      */}
       <div className="main-dashboard-content-row" style={{ display: 'flex', flexDirection: 'column', gap: '15px', width: 'max-content', minWidth: '100%', paddingBottom: '10px' }}>
         
-        {/* 1. 상단 네비게이션 바 (이제 하단 요소들과 가로 시작점이 일치하며, 스크롤 시 함께 움직입니다) */}
+        {/* 1. 상단 네비게이션 바 */}
         <div className="room-top-nav-bar" style={{ width: '100%', display: 'flex', justifyContent: 'flex-end', gap: '10px', padding: '0 5px' }}>
           <button className="nav-action-btn nav-home-btn" onClick={() => navigate('/')}>
             🏠 처음화면으로
@@ -350,47 +344,20 @@ function CalendarRoom() {
           </button>
         </div>
 
-        {/* 2. 공지사항 렌더링 영역 (상단 바 아래에 너비를 맞춰 조화롭게 위치합니다) */}
-        {(() => {
-          const checkDate = new Date();
-          checkDate.setHours(0, 0, 0, 0);
+        {/* 🌟 2. 기존의 고정높이 공지사항 중복 렌더링 코드 영역을 완전히 삭제했습니다! */}
 
-          const activeNotices = notices.filter(n => {
-            if (!n.start_date || !n.end_date) return true;
-            const start = new Date(n.start_date);
-            const end = new Date(n.end_date);
-            start.setHours(0, 0, 0, 0);
-            end.setHours(0, 0, 0, 0);
-            return checkDate >= start && checkDate <= end;
-          });
-
-          return activeNotices.length > 0 ? (
-            <div style={{ backgroundColor: '#fff3cd', color: '#856404', padding: '12px 20px', border: '1px solid #ffeeba', borderRadius: '12px', zIndex: 100, maxHeight: '65px', overflowY: 'auto', width: '100%', boxSizing: 'border-box' }}>
-              {activeNotices.map((n, index) => (
-                <div key={n.id || n._id || index} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontWeight: 'bold', fontSize: '13px', margin: '4px 0', flexWrap: 'wrap' }}>
-                  <span>📢 [공지] {n.content}</span>
-                  {n.start_date && n.end_date && (
-                    <span style={{ fontSize: '11px', color: '#d9534f', backgroundColor: '#fff', padding: '2px 6px', borderRadius: '4px', border: '1px solid #f5c6cb', fontWeight: 'normal' }}>
-                      {n.start_date} ~ {n.end_date}
-                    </span>
-                  )}
-                  <span style={{ fontSize: '11px', fontWeight: 'normal', color: '#666' }}>({n.writer || '익명'})</span>
-                </div>
-              ))}
-            </div>
-          ) : null;
-        })()}
-
-        {/* 3. 하단 실제 메인 스케줄러 및 대화방 영역 (원래 레이아웃 그대로 유지) */}
+        {/* 3. 하단 실제 메인 스케줄러 및 대화방 영역 */}
         <div style={{ display: 'flex', gap: '20px', width: '100%', alignItems: 'flex-start' }}>
           
           {/* Left: 달력 및 타임라인 영역 */}
           <div className="left-workspace-zone extended-view">
+            {/* 🌟 RoomHeader에 notices 주입완료 */}
             <RoomHeader 
               roomId={roomId} roomName={roomName} myName={myName} myColor={myColor}
               roomUsers={roomUsers} currentYear={currentYear} currentMonth={currentMonth}
               setCurrentMonth={setCurrentMonth} API_BASE_URL={API_BASE_URL} fetchRoomData={fetchRoomData}
               selectedDate={selectedDate} timelineClickInfo={timelineClickInfo} setTimelineClickInfo={setTimelineClickInfo}
+              notices={notices} 
             />
             <div className="calendar-and-timeline-flex">
               <CalendarBoard 
@@ -417,8 +384,8 @@ function CalendarRoom() {
             />
           </div>
 
-        </div> {/* 하단 실제 메인 영역 닫기 */}
-      </div> {/* .main-dashboard-content-row 닫기 */}
+        </div> 
+      </div> 
 
       {/* 일정 상세 확장 모달 */}
       {isSplitModalOpen && selectedEventData && (

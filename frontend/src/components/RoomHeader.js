@@ -105,21 +105,19 @@ function RoomHeader({
     }
   };
 
-  // 🌟 [수정 완료] 타임존 버그가 없는 로컬 시간(한국 시간 등) 기준 YYYY-MM-DD 구하기
-
+  // 타임존 버그가 없는 로컬 시간 기준 유효 공지사항 필터링
   const activeNotices = (notices || []).filter(notice => {
     if (!notice.start_date || !notice.end_date) return true; // 기간 세팅이 없으면 상시 노출
-    // 2. 날짜 비교를 위해 Date 객체 생성
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
-  const start = new Date(notice.start_date);
-  const end = new Date(notice.end_date);
-  start.setHours(0, 0, 0, 0);
-  end.setHours(0, 0, 0, 0);
+    const start = new Date(notice.start_date);
+    const end = new Date(notice.end_date);
+    start.setHours(0, 0, 0, 0);
+    end.setHours(0, 0, 0, 0);
 
-  // 3. 오늘 날짜가 기간 내에 있는지 확인
-  return today >= start && today <= end;
+    return today >= start && today <= end;
   });
 
   return (
@@ -137,26 +135,48 @@ function RoomHeader({
         }
       `}</style>
 
-      {/* 📢 기간 내 유효한 공지사항 상단 배너 존 */}
+      {/* 📢 기간 내 유효한 공지사항 상단 배너 존 (수정본) */}
       {activeNotices.length > 0 && (
         <div style={styles.noticeTopBanner}>
-          <span style={styles.noticeBadge}>📢 중요공지</span>
-          {/* 공지들을 세로로 나열하는 컨테이너 */}
-          <div style={{ display: 'flex', flexDirection: 'column', width: '100%', marginTop: '8px' }}>
+          {/* 타이틀 및 개수 인디케이터 */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+            <span style={styles.noticeBadge}>📢 중요공지</span>
+            <span style={{ fontSize: '12px', color: '#856404', fontWeight: 'bold' }}>
+              총 {activeNotices.length}개의 안내 사항이 있습니다.
+            </span>
+          </div>
+
+          {/* 개별 공지사항들이 카드 형태로 아래로 차곡차곡 쌓이는 컨테이너 */}
+          <div style={{ display: 'flex', flexDirection: 'column', width: '100%', gap: '8px' }}>
             {activeNotices.map((notice, idx) => (
-              <span key={notice.id || idx} style={{ marginBottom: '5px', fontSize: '13px', fontWeight: '700', color: '#2f3542' }}>
-                <strong>[{notice.writer}]</strong> {notice.content}
+              <div 
+                key={notice.id || idx} 
+                style={{ 
+                  display: 'flex', 
+                  flexDirection: 'column', 
+                  width: '100%', 
+                  padding: '12px 15px',
+                  backgroundColor: 'rgba(255, 255, 255, 0.75)', // 개별 공지 구분을 위한 밝은 카드 배경
+                  borderRadius: '6px',
+                  borderLeft: '4px solid #ff9233',              // 트렌디한 포인트 좌측 선
+                  boxSizing: 'border-box'
+                }}
+              >
+                <span style={{ fontSize: '14px', fontWeight: '700', color: '#2f3542', lineHeight: '1.4' }}>
+                  <strong>[{notice.writer || '방장'}]</strong> {notice.content}
+                </span>
                 {notice.start_date && notice.end_date && (
-                  <span style={{ fontSize: '11px', color: '#747d8c', marginLeft: '6px', fontWeight: 'normal' }}>
-                    ({notice.start_date} ~ {notice.end_date})
+                  <span style={{ fontSize: '11px', color: '#747d8c', marginTop: '6px', fontWeight: 'normal' }}>
+                    🗓️ 노출 기간: {notice.start_date} ~ {notice.end_date}
                   </span>
                 )}
-              </span>
+              </div>
             ))}
           </div>
         </div>
       )}
 
+      {/* 헤더 타이틀 영역 */}
       <div className="header-top-row">
         <div className="header-title-zone">
           <button onClick={() => setCurrentMonth(m => m === 1 ? 12 : m - 1)} className="month-nav-btn">◀</button>
@@ -169,6 +189,7 @@ function RoomHeader({
         </div>
       </div>
 
+      {/* 헤더 폼 및 참여자 카드 영역 */}
       <div className="header-bottom-row" style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
         <div className="active-room-users-card" style={{ margin: 0, padding: '12px', background: '#f1f2f6', borderRadius: '8px' }}>
           <h5>👥 참여 멤버 ({roomUsers.length}명)</h5>
@@ -271,23 +292,24 @@ function RoomHeader({
   );
 }
 
-// 🎨 인라인 스타일 sheets 확장
+// 🎨 스타일 인라인 시트 (수정 완료)
 const styles = {
   noticeTopBanner: {
     backgroundColor: '#fff3cd',
     border: '1px solid #ffeeba',
     borderRadius: '8px',
-    padding: '10px 15px',
-    marginBottom: '15px',
+    padding: '15px',                  // 내부 여백을 넉넉히 확보
+    marginBottom: '20px',             // 아래 메인 컴포넌트와의 간격 확보
     boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
     width: '100%',
+    boxSizing: 'border-box',
     
-    // 🌟 아래 내용으로 교체/추가하세요
     display: 'flex',
-    flexDirection: 'column', // 가로 나열을 세로 쌓기로 변경
-    alignItems: 'flex-start', // 왼쪽 정렬
-    height: 'auto',          // 내용에 따라 높이 자동 조절
-    overflowY: 'visible',    // 스크롤바가 생기지 않게 함
+    flexDirection: 'column',          // 🌟 가로가 아닌 세로로 차곡차곡 쌓이도록 구조 변경
+    alignItems: 'flex-start', 
+    height: 'auto',                   // 🌟 고정 높이 제거하여 유연한 자동 조절 구현
+    overflowY: 'visible',             // 🌟 내부 스크롤바 생성 전면 차단
+    gap: '10px',                      // 🌟 개별 공지사항 간의 세로 간격 생성
     animation: 'modalFadeIn 0.3s ease-out'
   },
   noticeBadge: {
