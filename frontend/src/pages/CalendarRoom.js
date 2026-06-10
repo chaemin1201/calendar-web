@@ -26,6 +26,9 @@ function CalendarRoom() {
   const [notices, setNotices] = useState([]);
   const [roomChats, setRoomChats] = useState([]);
   
+  // 🌟 [수정] roomName을 상태로 관리하여 API 응답에 따라 진짜 이름이 반영되도록 변경
+  const [roomName, setRoomName] = useState(`방 코드: ${roomId}`);
+
   // 2. 모달 및 선택된 이벤트 관련 상태
   const [isSplitModalOpen, setIsSplitModalOpen] = useState(false);
   const [selectedEventData, setSelectedEventData] = useState(null);
@@ -50,7 +53,6 @@ function CalendarRoom() {
 
   const [myName, setMyName] = useState(() => localStorage.getItem(`room_uname_${roomId}`) || null);
   const [myColor, setMyColor] = useState(() => localStorage.getItem(`room_color_${roomId}`) || null);
-  const roomName = localStorage.getItem(`room_name_${roomId}`) || `방 코드: ${roomId}`;
 
   const selectedEventId = selectedEventData?.id || selectedEventData?._id || null;
 
@@ -59,14 +61,25 @@ function CalendarRoom() {
     setMyColor(localStorage.getItem(`room_color_${roomId}`) || null);
   }, [roomId]);
 
+  // 🌟 [수정] 방 정보를 직접 호출하여 진짜 방 이름을 동기화하도록 API 요청 추가
   const fetchRoomData = useCallback(async () => {
     try {
-      const [resUsers, resSch, resNotice, resChats] = await Promise.all([
+      const [resRoom, resUsers, resSch, resNotice, resChats] = await Promise.all([
+        fetch(`${API_BASE_URL}/api/rooms/${roomId}`), // 👈 방 자체 정보(이름 등) 가져오는 API 추가
         fetch(`${API_BASE_URL}/api/rooms/${roomId}/users`),
         fetch(`${API_BASE_URL}/api/rooms/${roomId}/schedules`),
         fetch(`${API_BASE_URL}/api/rooms/${roomId}/notices`),
         fetch(`${API_BASE_URL}/api/rooms/${roomId}/chats`),
       ]);
+      
+      // 진짜 방 이름 설정 로직
+      if (resRoom.ok) {
+        const roomData = await resRoom.json();
+        if (roomData && (roomData.name || roomData.title || roomData.room_name)) {
+          setRoomName(roomData.name || roomData.title || roomData.room_name);
+        }
+      }
+      
       if (resUsers.ok) setRoomUsers(await resUsers.json());
       if (resSch.ok) setSchedules(await resSch.json());
       if (resNotice.ok) setNotices(await resNotice.json());
@@ -229,7 +242,9 @@ function CalendarRoom() {
         const data = await response.json();
         localStorage.setItem(`room_uname_${roomId}`, data.user_name);
         localStorage.setItem(`room_color_${roomId}`, data.color_code);
-        localStorage.setItem(`room_name_${roomId}`, roomName);
+        
+        // 🌟 [수정] 모호한 로컬스토리지 임시 방이름 저장 코드 제거 (API 기반으로 완전 단일화)
+        
         setMyName(data.user_name);
         setMyColor(data.color_code);
       } else { alert("입장 실패: 정보를 확인하세요."); }
@@ -296,10 +311,10 @@ function CalendarRoom() {
   }
 
   return (
-    <div className="app-container max-fluid-layout" style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
+    <div className="app-container max-fluid-layout">
       
       {/* 상단 네비게이션 바 */}
-      <div className="room-top-nav-bar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div className="room-top-nav-bar">
         <button className="nav-action-btn nav-home-btn" onClick={() => navigate('/')}>
           🏠 처음화면으로
         </button>
@@ -341,26 +356,17 @@ function CalendarRoom() {
       })()}
 
       {/* 메인 대시보드 플렉스 로우 */}
-      <div className="main-dashboard-content-row" style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+      <div className="main-dashboard-content-row">
         
         {/* Left: 달력 및 타임라인 영역 */}
-        <div 
-          className="left-workspace-zone extended-view" 
-          style={{ 
-            flex: 1, 
-            display: 'flex', 
-            flexDirection: 'column', 
-            overflowY: 'auto', 
-            padding: '15px'
-          }}
-        >
+        <div className="left-workspace-zone extended-view">
           <RoomHeader 
             roomId={roomId} roomName={roomName} myName={myName} myColor={myColor}
             roomUsers={roomUsers} currentYear={currentYear} currentMonth={currentMonth}
             setCurrentMonth={setCurrentMonth} API_BASE_URL={API_BASE_URL} fetchRoomData={fetchRoomData}
             selectedDate={selectedDate} timelineClickInfo={timelineClickInfo} setTimelineClickInfo={setTimelineClickInfo}
           />
-          <div className="calendar-and-timeline-flex" style={{ display: 'flex', gap: '20px', marginTop: '20px', alignItems: 'flex-start' }}>
+          <div className="calendar-and-timeline-flex">
             <CalendarBoard 
               currentYear={currentYear} currentMonth={currentMonth} schedules={schedules}
               selectedDate={selectedDate} setSelectedDate={setSelectedDate}
@@ -377,7 +383,7 @@ function CalendarRoom() {
         </div>
 
         {/* Right: 대화창 영역 */}
-        <div className="right-communication-sidebar-container">
+        <div className="right-communication-sidebar">
           <ChatSidebar 
             roomId={roomId} myName={myName} myColor={myColor} notices={notices}
             roomChats={roomChats} API_BASE_URL={API_BASE_URL} fetchRoomData={fetchRoomData}

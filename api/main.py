@@ -140,6 +140,17 @@ def join_room(room_id: str, payload: UserJoin):
         
     return {"user_name": payload.user_name, "color_code": payload.color_code}
 
+@app.get("/api/rooms/{room_id}")
+def get_room_info(room_id: str):
+    """특정 방의 상세 정보(방 이름 등)를 조회합니다."""
+    response = supabase.table("room").select("*").eq("room_id", room_id).execute()
+    
+    if not response.data:
+        raise HTTPException(status_code=404, detail="존재하지 않는 방입니다.")
+        
+    # 프론트엔드가 roomData.room_name을 안전하게 읽을 수 있도록 첫 번째 데이터 반환
+    return response.data[0]
+
 @app.get("/api/rooms/{room_id}/users")
 def get_room_users(room_id: str):
     response = supabase.table("user").select("*").eq("room_id", room_id).execute()
