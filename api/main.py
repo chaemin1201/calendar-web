@@ -461,28 +461,29 @@ async def create_schedule_ai(
 
 # 🌟 [수정 완료] 자동 저장 디바운스 및 파일 업로드 시 파일 종속성 버그 완벽 방어 API
 @app.patch("/api/schedules/{schedule_id}/memo")
+@app.patch("/api/rooms/{room_id}/schedules/{schedule_id}/memo") # 🌟 이렇게 한 번에 묶을 수 있습니다!
 async def update_schedule_memo(
     schedule_id: int,
-    memo: str = Form(""), # 🌟 빈 문자열 허용하여 422 에러 완벽 방어
+    room_id: Optional[str] = None, # room_id는 사용하지 않으므로 옵셔널로 처리
+    memo: str = Form(""),
     file: Optional[UploadFile] = File(None),
 ):
+    # 1. 대상 일정 확인
     sch_check = supabase.table("schedule").select("*").eq("id", schedule_id).execute()
     if not sch_check.data:
         raise HTTPException(status_code=404, detail="일정이 존재하지 않습니다.")
-
+    
     sch = sch_check.data[0]
-    update_payload = {"memo": memo} # 기본 업데이트 데이터
+    update_payload = {"memo": memo} # 🌟 아까 작성하신 코드에선 update_data였는데, 여기선 update_payload입니다!
 
-    # 파일 업로드 로직
+    # 2. 파일 업로드 로직
     if file and file.filename:
-        # 기존 파일 삭제
         if sch.get("memo_file_url"):
             delete_storage_file(sch.get("memo_file_url"))
 
         random_prefix = random.randint(1000, 9999)
         clean_filename = f"memo_{random_prefix}_{file.filename.replace(' ', '_')}"
         
-        # 파일 타입 결정
         content_type = file.content_type or "application/octet-stream"
         if file.filename.lower().endswith('.pdf'): content_type = "application/pdf"
         elif file.filename.lower().endswith('.hwp'): content_type = "application/x-hwp"
@@ -493,25 +494,16 @@ async def update_schedule_memo(
             file=file_bytes,
             file_options={"content-type": content_type}
         )
-        update_data["memo_file_url"] = supabase_client.storage.from_("uploaded_images").get_public_url(clean_filename)
+        # 🌟 update_payload를 사용하세요!
+        update_payload["memo_file_url"] = supabase_client.storage.from_("uploaded_images").get_public_url(clean_filename)
 
-    supabase.table("schedule").update(update_data).eq("id", schedule_id).execute()
+    # 3. DB 업데이트 (여기서 update_payload를 사용)
+    supabase.table("schedule").update(update_payload).eq("id", schedule_id).execute()
 
-    # 5. [중요] 최신 데이터를 다시 조회해서 전체 반환 (필드 누락 방지)
+    # 4. 최신 데이터를 다시 조회해서 전체 반환
     final_res = supabase.table("schedule").select("*").eq("id", schedule_id).execute()
     
     return final_res.data[0]
-# 🌟 [추가] 방 하위 일정 메모 업데이트 전용 라우터 (이게 없어서 프론트가 방황하는 중입니다)
-@app.patch("/api/rooms/{room_id}/schedules/{schedule_id}/memo")
-async def update_room_schedule_memo(
-    room_id: str,
-    schedule_id: int,
-    memo: str = Form(""),
-    file: Optional[UploadFile] = File(None),
-):
-    # 기존 update_schedule_memo 로직을 그대로 복사해서 사용하면 됩니다.
-    # 단, room_id는 여기선 쓰이지 않으므로 무시해도 됩니다.
-    return await update_schedule_memo(schedule_id, memo, file)
 
 @app.get("/api/schedules/{schedule_id}/sub-schedules")
 def get_sub_schedules(schedule_id: int):

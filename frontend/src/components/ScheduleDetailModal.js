@@ -60,6 +60,10 @@ useEffect(() => {
     try {
       const formData = new FormData();
       formData.append('memo', memoInput);
+
+      if (selectedEventData.memo_file_url) {
+        formData.append('memo_file_url', selectedEventData.memo_file_url);
+      }
       
       let res = await fetch(`${API_BASE_URL}/api/schedules/${selectedEventId}/memo`, {
         method: 'PATCH',
