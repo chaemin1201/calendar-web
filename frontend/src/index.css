@@ -26,3 +26,10 @@ code {
 .app-container {
   min-height: 100dvh; /* vh 대신 dvh를 쓰면 모바일에서 들썩거리지 않아요! */
 }
+
+/* 🌟 [추가] 방 이름과 코드가 모바일(핸드폰)에서 찌그러지거나 강제 줄바꿈되는 현상 방지 */
+.left-workspace-zone h2, 
+.left-workspace-zone div,
+.room-top-nav-bar span {
+  white-space: nowrap; /* 화면이 아무리 좁아져도 글자가 깨지지 않고 예쁘게 한 줄을 유지합니다 */
+}
