@@ -32,25 +32,46 @@ function MainHome() {
         saveRoomToHistory(targetId, finalName);
         navigate(`/calendar/${targetId}`);
       } else {
-        // 422, 500 등 서버가 응답은 했으나 거절한 경우 원인 출력
         const errText = await response.text();
         console.error("서버 응답 거절 사유:", errText);
         alert(`서버 응답 실패 (오류 코드: ${response.status})`);
       }
     } catch (err) { 
-      // 💡 네트워크 단절, 주소 불일치 등 아예 연결이 안 된 경우 콘솔에 진짜 원인 출력
       console.error("❌ 실제 발생한 네트워크 에러 상세 내용:", err);
       alert("서버 연결 실패"); 
     }
   };
 
-  const handleJoinByCode = (e) => {
+  // 🌟 [수정] 코드 입력 후 입장할 때, 백엔드로부터 진짜 방 이름을 API로 받아와 히스토리에 저장합니다.
+  const handleJoinByCode = async (e) => {
     e.preventDefault();
     const trimmed = roomCodeInput.trim();
     if (trimmed.length !== 6) { alert("방 번호는 숫자 6자리를 입력해 주세요."); return; }
-    const existingName = localStorage.getItem(`room_name_${trimmed}`);
-    saveRoomToHistory(trimmed, existingName || `방 코드: ${trimmed}`);
-    navigate(`/calendar/${trimmed}`);
+
+    try {
+      // 1. 서버에 해당 방의 정보를 요청해서 방 이름을 가져옵니다.
+      const response = await fetch(`${API_BASE_URL}/api/rooms/${trimmed}`);
+      
+      let finalName = `방 코드: ${trimmed}`;
+      
+      if (response.ok) {
+        const data = await response.json();
+        // 백엔드 명세에 맞춰 data.room_name 또는 data.name 등을 유연하게 매핑합니다.
+        finalName = data.room_name || data.name || finalName;
+      }
+
+      // 2. 알아낸 진짜 방 이름을 로컬 저장소에 완벽히 동기화합니다.
+      localStorage.setItem(`room_name_${trimmed}`, finalName);
+      saveRoomToHistory(trimmed, finalName);
+      navigate(`/calendar/${trimmed}`);
+
+    } catch (err) {
+      console.error("방 정보 조회 실패:", err);
+      // 서버 통신이 실패하더라도 기존 로직대로 입장은 시켜주는 가드 코드 처리
+      const existingName = localStorage.getItem(`room_name_${trimmed}`);
+      saveRoomToHistory(trimmed, existingName || `방 코드: ${trimmed}`);
+      navigate(`/calendar/${trimmed}`);
+    }
   };
 
   // ✅ 방 이름 함께 저장 (원본 유지)
@@ -81,7 +102,6 @@ function MainHome() {
         <h1>🗓️ 스마트 캘린더</h1>
         <p>방별로 분리된 일정 조율 및 실시간 전체 채팅 플랫폼</p>
 
-        {/* ✅ 원래 쓰시던 인풋창과 개설 버튼 디자인 컴포넌트 구조 100% 고정 */}
         <input
           type="text"
           placeholder="새 방 이름 입력 (예: 졸업여행 계획)"
