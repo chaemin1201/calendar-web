@@ -460,7 +460,7 @@ async def create_schedule_ai(
 
 
 # 🌟 [수정 완료] 자동 저장 디바운스 및 파일 업로드 시 파일 종속성 버그 완벽 방어 API
-@app.patch("/api/schedules/{schedule_id}/memo")
+@app.patch("/api/schedules/")
 async def update_schedule_memo(
     schedule_id: int,
     memo: str = Form(""), # 🌟 빈 문자열 허용하여 422 에러 완벽 방어
@@ -504,7 +504,7 @@ async def update_schedule_memo(
     final_memo = memo if memo.strip() else sch.get("memo", "")
 
     response = supabase.table("schedule").update({
-        "memo": final_memo,
+        "memo": memo,
         "memo_file_url": memo_file_url
     }).eq("id", schedule_id).execute()
     
@@ -521,7 +521,17 @@ async def update_schedule_memo(
         "memo": updated_sch.get("memo"),
         "memo_file_url": updated_sch.get("memo_file_url")
     }
-
+# 🌟 [추가] 방 하위 일정 메모 업데이트 전용 라우터 (이게 없어서 프론트가 방황하는 중입니다)
+@app.patch("/api/rooms/{room_id}/schedules/{schedule_id}/memo")
+async def update_room_schedule_memo(
+    room_id: str,
+    schedule_id: int,
+    memo: str = Form(""),
+    file: Optional[UploadFile] = File(None),
+):
+    # 기존 update_schedule_memo 로직을 그대로 복사해서 사용하면 됩니다.
+    # 단, room_id는 여기선 쓰이지 않으므로 무시해도 됩니다.
+    return await update_schedule_memo(schedule_id, memo, file)
 
 @app.get("/api/schedules/{schedule_id}/sub-schedules")
 def get_sub_schedules(schedule_id: int):
@@ -585,7 +595,7 @@ def delete_schedule_main_image(schedule_id: int):
         
     return {"status": "success", "message": "일정 메인 이미지가 삭제되었습니다."}
 
-@app.delete("/api/schedules/{schedule_id}/memo-file")
+@app.delete("/api/schedules/-file")
 def delete_schedule_memo_file(schedule_id: int):
     sch_check = supabase.table("schedule").select("*").eq("id", schedule_id).execute()
     if not sch_check.data:
