@@ -322,8 +322,10 @@ def update_schedule_details(schedule_id: int, payload: ScheduleUpdate):
 
     if update_data:
         supabase.table("schedule").update(update_data).eq("id", schedule_id).execute()
-        
-    return {"status": "success", "message": "일정 정보 및 메모가 수정되었습니다."}
+    
+    # ✅ 최신 데이터를 다시 조회해서 전체 반환
+    final_res = supabase.table("schedule").select("*").eq("id", schedule_id).execute()
+    return final_res.data[0]
 
 @app.delete("/api/schedules/{schedule_id}")
 def delete_schedule(schedule_id: int):
@@ -459,25 +461,17 @@ async def create_schedule_ai(
         )
 
 
-# 🌟 [수정 완료] 자동 저장 디바운스 및 파일 업로드 시 파일 종속성 버그 완벽 방어 API
-@app.patch("/api/schedules/{schedule_id}/memo")
-@app.patch("/api/rooms/{room_id}/schedules/{schedule_id}/memo") # 🌟 이렇게 한 번에 묶을 수 있습니다!
-async def update_schedule_memo(
-    schedule_id: int,
-    room_id: Optional[str] = None, # room_id는 사용하지 않으므로 옵셔널로 처리
-    memo: str = Form(""),
-    file: Optional[UploadFile] = File(None),
-):
-    # 1. 대상 일정 확인
+## 공통 비즈니스 로직 함수
+async def _handle_memo_update(schedule_id: int, memo: str, file: Optional[UploadFile]):
     sch_check = supabase.table("schedule").select("*").eq("id", schedule_id).execute()
     if not sch_check.data:
         raise HTTPException(status_code=404, detail="일정이 존재하지 않습니다.")
     
     sch = sch_check.data[0]
-    update_payload = {"memo": memo} # 🌟 아까 작성하신 코드에선 update_data였는데, 여기선 update_payload입니다!
+    update_payload = {"memo": memo}
 
-    # 2. 파일 업로드 로직
     if file and file.filename:
+        # 기존 파일 삭제
         if sch.get("memo_file_url"):
             delete_storage_file(sch.get("memo_file_url"))
 
@@ -485,25 +479,48 @@ async def update_schedule_memo(
         clean_filename = f"memo_{random_prefix}_{file.filename.replace(' ', '_')}"
         
         content_type = file.content_type or "application/octet-stream"
-        if file.filename.lower().endswith('.pdf'): content_type = "application/pdf"
-        elif file.filename.lower().endswith('.hwp'): content_type = "application/x-hwp"
+        if file.filename.lower().endswith('.pdf'):
+            content_type = "application/pdf"
+        elif file.filename.lower().endswith('.hwp'):
+            content_type = "application/x-hwp"
 
-        file_bytes = await file.read()
-        supabase_client.storage.from_("uploaded_images").upload(
-            path=clean_filename,
-            file=file_bytes,
-            file_options={"content-type": content_type}
-        )
-        # 🌟 update_payload를 사용하세요!
-        update_payload["memo_file_url"] = supabase_client.storage.from_("uploaded_images").get_public_url(clean_filename)
+        try:
+            file_bytes = await file.read()
+            supabase_client.storage.from_("uploaded_images").upload(
+                path=clean_filename,
+                file=file_bytes,
+                file_options={"content-type": content_type}
+            )
+            update_payload["memo_file_url"] = supabase_client.storage \
+                .from_("uploaded_images").get_public_url(clean_filename)
+        except Exception as e:
+            print(f"⚠️ 메모 파일 스토리지 업로드 실패: {e}")
+            raise HTTPException(status_code=500, detail=f"파일 업로드 중 오류 발생: {str(e)}")
 
-    # 3. DB 업데이트 (여기서 update_payload를 사용)
     supabase.table("schedule").update(update_payload).eq("id", schedule_id).execute()
-
-    # 4. 최신 데이터를 다시 조회해서 전체 반환
     final_res = supabase.table("schedule").select("*").eq("id", schedule_id).execute()
-    
     return final_res.data[0]
+
+
+# ✅ 라우트는 각각 분리해서 등록
+@app.patch("/api/schedules/{schedule_id}/memo")
+async def update_schedule_memo(
+    schedule_id: int,
+    memo: str = Form(""),
+    file: Optional[UploadFile] = File(None),
+):
+    return await _handle_memo_update(schedule_id, memo, file)
+
+
+@app.patch("/api/rooms/{room_id}/schedules/{schedule_id}/memo")
+async def update_room_schedule_memo(
+    room_id: str,
+    schedule_id: int,
+    memo: str = Form(""),
+    file: Optional[UploadFile] = File(None),
+):
+    return await _handle_memo_update(schedule_id, memo, file)
+
 
 @app.get("/api/schedules/{schedule_id}/sub-schedules")
 def get_sub_schedules(schedule_id: int):

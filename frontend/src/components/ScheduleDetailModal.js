@@ -55,7 +55,7 @@ useEffect(() => {
   }
 
   const delayDebounceTimer = setTimeout(async () => {
-    if (!selectedEventId || isUploading.current) return; // 파일 업로드 중이면 패스
+    if (!selectedEventId || isUploading.current) return;
     
     try {
       const formData = new FormData();
@@ -79,31 +79,23 @@ useEffect(() => {
 
       if (res.ok) {
         const responseData = await res.json();
-        // 🌟 백엔드가 반환한 최신 파일 URL 주소 추출 (안전장치 포함)
-        const currentFileUrl = 
-          responseData.memo_file_url || 
-          responseData.data?.memo_file_url || 
+        const currentFileUrl =
+          responseData.memo_file_url ||
+          responseData.data?.memo_file_url ||
           responseData.result?.memo_file_url ||
           responseData.schedule?.memo_file_url;
 
-        // 🌟 메모 텍스트와 함께, 기존/새로운 파일 URL이 날아가지 않도록 안전하게 동기화
-        setSelectedEventData(prev => ({ 
-          ...prev, 
-          memo: memoInput, 
-          note: memoInput, 
+        setSelectedEventData(prev => ({
+          ...prev,
+          memo: memoInput,
+          note: memoInput,
           description: memoInput,
-          memo_file_url: currentFileUrl || prev.memo_file_url // 파일 주소 유지 락
+          memo_file_url: currentFileUrl || prev.memo_file_url
         }));
 
-        setSchedules(prev => prev.map(s => 
-          (s.id === selectedEventId || s._id === selectedEventId) 
-            ? { 
-                ...s, 
-                memo: memoInput, 
-                note: memoInput, 
-                description: memoInput,
-                memo_file_url: currentFileUrl || s.memo_file_url 
-              } 
+        setSchedules(prev => prev.map(s =>
+          (s.id === selectedEventId || s._id === selectedEventId)
+            ? { ...s, memo: memoInput, note: memoInput, description: memoInput, memo_file_url: currentFileUrl || s.memo_file_url }
             : s
         ));
       }
@@ -113,7 +105,9 @@ useEffect(() => {
   }, 800);
 
   return () => clearTimeout(delayDebounceTimer);
-}, [memoInput, selectedEventId, API_BASE_URL, roomId, setSelectedEventData, setSchedules]);
+
+// ✅ setter 함수 제거, selectedEventData.memo_file_url 대신 직접 값 추적
+}, [memoInput, selectedEventId, API_BASE_URL, roomId]);
 
   // 🌟 [수정 완료] 백엔드 응답의 다양한 중첩 객체 깊이를 모두 방어하는 파일 첨부 핸들러
   const handleMemoFileChange = async (e) => {
@@ -406,7 +400,7 @@ useEffect(() => {
                 <label 
                   htmlFor="memo-file-hidden-input"
                   style={{ fontSize: '11px', background: '#f1f2f6', border: '1px solid #ced6e0', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', color: '#57606f', fontWeight: 'bold' }}
-                  onClick={(e) => e.stopPropagation()} 
+                  onMouseDown={(e) => e.stopPropagation()} 
                 >
                   📎 파일 첨부
                 </label>
