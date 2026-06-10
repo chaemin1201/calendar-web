@@ -88,39 +88,34 @@ function MainHome() {
     setMyRooms([...arr]);
   };
 
-  // 🌟 [수정] 대시보드 목록에서 ✕ 버튼을 누르면 서버에서 '방 나가기' 처리 후 목록에서 완전히 제거합니다.
+  // MainHome.js의 handleRemoveRoomHistory 함수를 이렇게 수정하세요
   const handleRemoveRoomHistory = async (e, id) => {
-    e.stopPropagation(); // li 태그 클릭 이벤트로 전파되어 방으로 입장하는 버그 방지
+    e.stopPropagation();
 
-    // 1. 사용자에게 진짜 나갈 것인지 커스텀 확인
-    if (!window.confirm('정말로 이 공간을 탈퇴하고 대시보드에서 제거하시겠습니까?')) return;
+    // 사용자에게 강력한 경고 메시지 전달
+    if (!window.confirm('정말로 이 공간을 서버에서 완전히 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.')) return;
 
     try {
-      // 2. [서버 연동] 백엔드에 방 나가기(탈퇴) 요청을 보냅니다.
-      // (기존 방 내부에서 쓰던 탈퇴 API 주소 형식에 맞췄습니다. 필요시 주소 확인!)
-      const response = await fetch(`${API_BASE_URL}/api/rooms/${id}/leave`, {
-        method: 'POST',
+      // 🌟 서버의 delete_room 엔드포인트(/api/rooms/{room_id})를 호출
+      const response = await fetch(`${API_BASE_URL}/api/rooms/${id}`, {
+        method: 'DELETE', 
         headers: { 'Content-Type': 'application/json' }
       });
 
-      if (response.ok || response.status === 404) {
-        // 성공했거나, 혹은 서버에 이미 없는 방이라면 화면에서도 깔끔하게 청소합니다.
+      if (response.ok) {
+        // 서버 삭제 성공 시 프론트엔드 목록에서도 제거
         const updated = myRooms.filter(r => r.id !== id);
         setMyRooms(updated);
-        
-        // 3. 로컬 저장소에서도 방 히스토리와 캐시된 방 이름을 완벽히 제거합니다.
         localStorage.setItem('my_shared_calendars', JSON.stringify(updated));
         localStorage.removeItem(`room_name_${id}`);
-        
-        alert("성공적으로 공간을 탈퇴했습니다.");
+      
+        alert("공간과 관련된 모든 데이터가 서버에서 삭제되었습니다.");
       } else {
-        const errText = await response.text();
-        console.error("방 탈퇴 실패 사유:", errText);
-        alert(`방 탈퇴에 실패했습니다. (오류 코드: ${response.status})`);
+        alert("서버에서 공간을 삭제하는 데 실패했습니다. (권한이 없거나 서버 오류)");
       }
     } catch (err) {
-      console.error("❌ 방 탈퇴 네트워크 에러:", err);
-      alert("서버와 연결이 원활하지 않아 방을 나가지 못했습니다.");
+      console.error("삭제 실패:", err);
+      alert("서버 통신 중 오류가 발생했습니다.");
     }
   };
 
