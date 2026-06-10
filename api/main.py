@@ -516,15 +516,14 @@ async def update_schedule_memo(
         "memo": memo,
         "memo_file_url": memo_file_url
     }).eq("id", schedule_id).execute()
-    
-    updated_sch = response.data[0] if response.data else {}
-    
-    # 🌟 프론트엔드가 에러 창을 띄우지 않도록 모든 깊이(Depth)에 데이터 매핑하여 리턴
+
+    print("업데이트 응답:", response.data)
+
     return {
         "status": "updated",
         "id": schedule_id,
-        "memo": updated_sch.get("memo"),
-        "memo_file_url": updated_sch.get("memo_file_url")
+        "memo": memo,
+        "memo_file_url": memo_file_url
     }
 # 🌟 [추가] 방 하위 일정 메모 업데이트 전용 라우터 (이게 없어서 프론트가 방황하는 중입니다)
 @app.patch("/api/rooms/{room_id}/schedules/{schedule_id}/memo")
