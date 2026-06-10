@@ -12,7 +12,7 @@ function ScheduleDetailModal({
   subSchedules, setSubSchedules, localMyTimes, setLocalMyTimes,
   eventChats, API_BASE_URL, fetchEventChats,
   setIsSplitModalOpen, setSelectedEventData, setSchedules,
-  handleDeleteTarget // 🌟 [추가] 부모 컴포넌트(CalendarRoom)의 공통 확인 모달 트리거 함수 받아오기
+  handleDeleteTarget
 }) {
   const eventChatEndRef = useRef(null);
   const { roomId } = useParams();
@@ -38,13 +38,15 @@ function ScheduleDetailModal({
   const [eventChatInput, setEventChatInput] = useState('');
 
   const isInitialMount = useRef(true);
+  // 🌟 [추가] 파일 업로드 중 자동 저장 디바운스가 실행되어 상태가 꼬이는 것을 막는 락(Lock) 변수
+  const isUploading = useRef(false);
 
   // 새 채팅이 올 때마다 톡룸 하단으로 자동 스크롤
   useEffect(() => {
     eventChatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [eventChats]);
 
-  // JSON 전송 방식에서 Multipart/Form-Data(FormData) 방식으로 변경된 디바운스 자동 저장
+  // 디바운스 자동 저장 기능 수정 (락 메커니즘 적용)
   useEffect(() => {
     if (isInitialMount.current) {
       isInitialMount.current = false;
@@ -52,14 +54,12 @@ function ScheduleDetailModal({
     }
 
     const delayDebounceTimer = setTimeout(async () => {
-      if (!selectedEventId) return;
+      if (!selectedEventId || isUploading.current) return; // 🌟 파일 업로드 중이면 패스
       
       try {
-        // FormData 객체 생성 및 텍스트 데이터 주입
         const formData = new FormData();
         formData.append('memo', memoInput);
         
-        // ⚠️ 주의: body가 FormData일 때는 headers에 'Content-Type': 'application/json'을 명시하면 에러가 납니다.
         let res = await fetch(`${API_BASE_URL}/api/schedules/${selectedEventId}/memo`, {
           method: 'PATCH',
           body: formData
@@ -73,9 +73,6 @@ function ScheduleDetailModal({
         }
 
         if (res.ok) {
-          // eslint-disable-next-line
-          const data = await res.json();
-          // 백엔드 상태와 프론트 상태 동기화 (기존 텍스트 구조 유지)
           setSelectedEventData(prev => ({ ...prev, memo: memoInput, note: memoInput, description: memoInput }));
           setSchedules(prev => prev.map(s => (s.id === selectedEventId || s._id === selectedEventId) ? { ...s, memo: memoInput, note: memoInput, description: memoInput } : s));
         }
@@ -88,14 +85,19 @@ function ScheduleDetailModal({
   }, [memoInput, selectedEventId, API_BASE_URL, roomId, setSelectedEventData, setSchedules]);
 
 
-  // 메모 전용 첨부파일 업로드 이벤트 핸들러 추가
+  // 🌟 [정밀 수정] 파일 첨부 핸들러 고도화 (이벤트 버블링 완전 차단 및 무반응 버그 해결)
   const handleMemoFileChange = async (e) => {
-    const file = e.target.files[0];
+    e.stopPropagation(); // 이벤트가 상위 레이아웃(모달)으로 전파되어 닫히거나 씹히는 현상 방지
+    
+    const file = e.target.files?.[0];
     if (!file || !selectedEventId) return;
 
+    // 업로드 락 가동
+    isUploading.current = true;
+
     const formData = new FormData();
-    formData.append('memo', memoInput); // 현재 입력된 메모 텍스트 동시 전송
-    formData.append('file', file);      // 선택한 파일 스트림 전송
+    formData.append('memo', memoInput); // 현재 작성 중인 텍스트 상태 동기화
+    formData.append('file', file);      // 핵심 파일 바이너리 스트림
 
     try {
       let res = await fetch(`${API_BASE_URL}/api/schedules/${selectedEventId}/memo`, {
@@ -112,16 +114,20 @@ function ScheduleDetailModal({
 
       if (res.ok) {
         const data = await res.json();
-        // 백엔드에서 리턴된 새 파일 주소(memo_file_url)를 상태값에 반영
+        // 백엔드에서 내려준 새 파일 URL 반영 및 전체 일정 리스트 동기화
         setSelectedEventData(prev => ({ ...prev, memo_file_url: data.memo_file_url }));
         setSchedules(prev => prev.map(s => (s.id === selectedEventId || s._id === selectedEventId) ? { ...s, memo_file_url: data.memo_file_url } : s));
         alert("📎 공유 메모장에 파일이 성공적으로 첨부되었습니다!");
       } else {
-        alert("파일 업로드에 실패했습니다.");
+        alert("파일 업로드에 실패했습니다. 서버 상태를 확인해 주세요.");
       }
     } catch (err) {
       console.error(err);
       alert("파일 통신 중 오류가 발생했습니다.");
+    } finally {
+      // 업로드 완료 후 락 해제 및 인풋 초기화(동일 파일 재선택 가능하도록)
+      isUploading.current = false;
+      e.target.value = '';
     }
   };
 
@@ -323,16 +329,25 @@ function ScheduleDetailModal({
               </div>
             </div>
 
-            {/* 공유 메모장 레이아웃 고도화 (파일 업로드 및 뷰어 연동) */}
+            {/* 공유 메모장 레이아웃 고도화 */}
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '5px', minHeight: '180px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#57606f' }}>📍 공유 메모장</label>
                 
-                {/* 메모용 파일 첨부 버튼 디자인 */}
-                <label style={{ fontSize: '11px', background: '#f1f2f6', border: '1px solid #ced6e0', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', color: '#57606f', fontWeight: 'bold' }}>
+                {/* 🌟 [UX 보정] HTML 기본 매핑 구조 버그 해결을 위해 htmlFor 바인딩 선언 */}
+                <label 
+                  htmlFor="memo-file-hidden-input"
+                  style={{ fontSize: '11px', background: '#f1f2f6', border: '1px solid #ced6e0', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', color: '#57606f', fontWeight: 'bold' }}
+                  onClick={(e) => e.stopPropagation()} // 라벨 자체 클릭 전파 방지
+                >
                   📎 파일 첨부
-                  <input type="file" onChange={handleMemoFileChange} style={{ display: 'none' }} />
                 </label>
+                <input 
+                  id="memo-file-hidden-input"
+                  type="file" 
+                  onChange={handleMemoFileChange} 
+                  style={{ display: 'none' }} 
+                />
               </div>
 
               <textarea
@@ -357,7 +372,6 @@ function ScheduleDetailModal({
                     </a>
                   </div>
 
-                  {/* 🌟 [수정 핵심] 부모의 통합 확인 모달 시스템을 띄우는 삭제 버튼 추가 */}
                   <button
                     type="button"
                     onClick={() => handleDeleteTarget('file', selectedEventId)}
