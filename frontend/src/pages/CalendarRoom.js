@@ -42,7 +42,7 @@ function CalendarRoom() {
   const [confirmModal, setConfirmModal] = useState(null);
 
   // 3. 달력 및 날짜 조작 상태
-  const [currentYear, setCurrentYear] = useState(today.getFullYear());
+  const [currentYear] = useState(today.getFullYear());
   const [currentMonth, setCurrentMonth] = useState(today.getMonth() + 1);
   const [selectedDate, setSelectedDate] = useState(
     `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
