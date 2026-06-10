@@ -11,3 +11,18 @@ code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;
 }
+
+/* 1. 상단 바 버튼들이 좁아져도 찌그러지지 않게 방지 */
+.nav-action-btn {
+  flex-shrink: 0;
+}
+
+/* 2. 전체 레이아웃 로우가 압착되는 것 방지 */
+.main-dashboard-content-row {
+  box-sizing: border-box;
+}
+
+/* 3. 모바일/웹 브라우저 주소창 대응 */
+.app-container {
+  min-height: 100dvh; /* vh 대신 dvh를 쓰면 모바일에서 들썩거리지 않아요! */
+}
