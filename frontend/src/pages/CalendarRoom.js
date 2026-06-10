@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import RoomHeader from '../components/RoomHeader';
 import CalendarBoard from '../components/CalendarBoard';
@@ -20,13 +20,15 @@ function CalendarRoom() {
   const navigate = useNavigate();
   const today = new Date();
 
+  // 스크롤 튕김 방지용 가로 스크롤 상태 기억 변수
+  const layoutRef = useRef(null);
+
   // 1. 전역 상태 관리
   const [schedules, setSchedules] = useState([]);
   const [roomUsers, setRoomUsers] = useState([]);
   const [notices, setNotices] = useState([]);
   const [roomChats, setRoomChats] = useState([]);
   
-  // 🌟 [수정] roomName을 상태로 관리하여 API 응답에 따라 진짜 이름이 반영되도록 변경
   const [roomName, setRoomName] = useState(`방 코드: ${roomId}`);
 
   // 2. 모달 및 선택된 이벤트 관련 상태
@@ -40,7 +42,6 @@ function CalendarRoom() {
   const [confirmModal, setConfirmModal] = useState(null);
 
   // 3. 달력 및 날짜 조작 상태
-  // eslint-disable-next-line
   const [currentYear, setCurrentYear] = useState(today.getFullYear());
   const [currentMonth, setCurrentMonth] = useState(today.getMonth() + 1);
   const [selectedDate, setSelectedDate] = useState(
@@ -61,29 +62,51 @@ function CalendarRoom() {
     setMyColor(localStorage.getItem(`room_color_${roomId}`) || null);
   }, [roomId]);
 
-  // 🌟 [수정] 방 정보를 직접 호출하여 진짜 방 이름을 동기화하도록 API 요청 추가
+  // 🌟 [최적화] 데이터 가져오기 로직 분리 및 불필요한 데이터 덮어쓰기 방지
   const fetchRoomData = useCallback(async () => {
     try {
+      // 스크롤 위치 사전 저장
+      const currentScrollLeft = layoutRef.current ? layoutRef.current.scrollLeft : 0;
+
       const [resRoom, resUsers, resSch, resNotice, resChats] = await Promise.all([
-        fetch(`${API_BASE_URL}/api/rooms/${roomId}`), // 👈 방 자체 정보(이름 등) 가져오는 API 추가
+        fetch(`${API_BASE_URL}/api/rooms/${roomId}`),
         fetch(`${API_BASE_URL}/api/rooms/${roomId}/users`),
         fetch(`${API_BASE_URL}/api/rooms/${roomId}/schedules`),
         fetch(`${API_BASE_URL}/api/rooms/${roomId}/notices`),
         fetch(`${API_BASE_URL}/api/rooms/${roomId}/chats`),
       ]);
       
-      // 진짜 방 이름 설정 로직
       if (resRoom.ok) {
         const roomData = await resRoom.json();
-        if (roomData && (roomData.name || roomData.title || roomData.room_name)) {
-          setRoomName(roomData.name || roomData.title || roomData.room_name);
+        const extractedName = roomData.name || roomData.title || roomData.room_name;
+        if (extractedName) {
+          setRoomName(prev => prev !== extractedName ? extractedName : prev);
         }
       }
       
-      if (resUsers.ok) setRoomUsers(await resUsers.json());
-      if (resSch.ok) setSchedules(await resSch.json());
-      if (resNotice.ok) setNotices(await resNotice.json());
-      if (resChats.ok) setRoomChats(await resChats.json());
+      if (resUsers.ok) {
+        const nextUsers = await resUsers.json();
+        setRoomUsers(prev => JSON.stringify(prev) !== JSON.stringify(nextUsers) ? nextUsers : prev);
+      }
+      if (resSch.ok) {
+        const nextSch = await resSch.json();
+        setSchedules(prev => JSON.stringify(prev) !== JSON.stringify(nextSch) ? nextSch : prev);
+      }
+      if (resNotice.ok) {
+        const nextNotice = await resNotice.json();
+        setNotices(prev => JSON.stringify(prev) !== JSON.stringify(nextNotice) ? nextNotice : prev);
+      }
+      if (resChats.ok) {
+        const nextChats = await resChats.json();
+        // 채팅방 스크롤 튕김 현상을 유발하지 않도록 변경된 내용이 있을 때만 업데이트
+        setRoomChats(prev => prev.length !== nextChats.length ? nextChats : prev);
+      }
+
+      // 렌더링 직후 사용자가 스크롤했던 가로 위치 강제 복원 (튕김 원천 차단)
+      if (layoutRef.current) {
+        layoutRef.current.scrollLeft = currentScrollLeft;
+      }
+
     } catch (e) { console.error("방 데이터 로드 실패:", e); }
   }, [roomId]);
 
@@ -104,7 +127,10 @@ function CalendarRoom() {
     if (!schId) return;
     try {
       const res = await fetch(`${API_BASE_URL}/api/schedules/${schId}/chats`);
-      if (res.ok) setEventChats(await res.json());
+      if (res.ok) {
+        const nextEvChats = await res.json();
+        setEventChats(prev => prev.length !== nextEvChats.length ? nextEvChats : prev);
+      }
     } catch (e) { console.error(e); }
   }, []);
 
@@ -115,10 +141,8 @@ function CalendarRoom() {
     }
   }, [selectedEventId, fetchSubSchedules, fetchEventChats]);
 
-  // 최신 schedules 데이터와 현재 열려있는 모달 데이터 실시간 동기화
   useEffect(() => {
     if (!selectedEventId || schedules.length === 0) return;
-    
     const latestEvent = schedules.find(s => s.id === selectedEventId || s._id === selectedEventId);
     if (latestEvent) {
       setSelectedEventData(prev => {
@@ -137,24 +161,22 @@ function CalendarRoom() {
     return () => clearInterval(interval);
   }, [isSplitModalOpen, selectedEventId, fetchEventChats]);
 
+  // 🌟 컴포넌트 마운트 시 최초 1회 즉시 실행 후 3초 타이머 작동
   useEffect(() => {
     fetchRoomData();
     const interval = setInterval(fetchRoomData, 3000);
     return () => clearInterval(interval);
   }, [roomId, fetchRoomData]);
 
-  // 그룹 나가기 모달 호출
   const handleLeaveRoom = () => {
     setConfirmModal({ type: 'leave' });
   };
 
-  // 삭제 비즈니스 로직 모달 호출
   const handleDeleteTarget = (type, id) => {
     if (!id) return;
     setConfirmModal({ type, id });
   };
 
-  // 모달 내 '확인' 버튼 클릭 시 실제 동작을 수행하는 통합 함수
   const executeConfirmAction = async () => {
     if (!confirmModal) return;
     const { type, id } = confirmModal;
@@ -180,6 +202,7 @@ function CalendarRoom() {
         const listKey = 'my_shared_calendars'; 
         const currentList = JSON.parse(localStorage.getItem(listKey) || '[]');
         const updatedList = currentList.filter(room => String(room.id) !== String(roomId));
+        document.body.style.overflow = 'unset'; // 혹시 모를 고정 해제
         localStorage.setItem(listKey, JSON.stringify(updatedList));
 
         navigate('/'); 
@@ -242,9 +265,6 @@ function CalendarRoom() {
         const data = await response.json();
         localStorage.setItem(`room_uname_${roomId}`, data.user_name);
         localStorage.setItem(`room_color_${roomId}`, data.color_code);
-        
-        // 🌟 [수정] 모호한 로컬스토리지 임시 방이름 저장 코드 제거 (API 기반으로 완전 단일화)
-        
         setMyName(data.user_name);
         setMyColor(data.color_code);
       } else { alert("입장 실패: 정보를 확인하세요."); }
@@ -311,7 +331,8 @@ function CalendarRoom() {
   }
 
   return (
-    <div className="app-container max-fluid-layout">
+    /* 🌟 [수정] ref={layoutRef} 를 추가하여 스크롤 위치를 고정 추적할 수 있도록 바인딩 */
+    <div ref={layoutRef} className="app-container max-fluid-layout">
       
       {/* 상단 네비게이션 바 */}
       <div className="room-top-nav-bar">
@@ -391,7 +412,7 @@ function CalendarRoom() {
           />
         </div>
 
-      </div> {/* .main-dashboard-content-row 닫기 */}
+      </div>
 
       {/* 일정 상세 확장 모달 */}
       {isSplitModalOpen && selectedEventData && (

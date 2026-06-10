@@ -8,14 +8,17 @@
   font-family: 'Pretendard', -apple-system, sans-serif; 
 }
 
-/* 브라우저 기본 스크롤을 완전히 차단하고 전체 높이를 100vh로 고정 */
 html, body, #root { 
   background-color: #f1f2f6; 
   color: #2f3542; 
   width: 100%;
-  height: 100vh;
-  overflow-x: auto;   /* 🌟 화면이 찌그러질 때 가로 스크롤바가 생기도록 허용 */
-  overflow-y: hidden; /* 세로 스크롤은 기존처럼 철저히 차단 */
+  /* 🌟 [수정] 모바일 주소창 가변 높이 대응 및 꿀렁임/튕김 방지 */
+  min-height: 100dvh; 
+  height: 100%;
+  
+  /* 🌟 전체 페이지 레벨에서의 강제 고정을 풀고, 레이아웃 컨테이너 단위로 제어합니다. */
+  overflow-x: auto;   
+  overflow-y: auto; 
 }
 
 /* ==========================================================================
@@ -43,10 +46,13 @@ html, body, #root {
 .max-fluid-layout { 
   width: 100vw;
   max-width: 100% !important; 
-  height: 100vh; 
-  max-height: 100vh;
+  /* 🌟 [수정] 고정 vh를 해제하고 dynamic vh 및 유연한 최소높이 확보 */
+  min-height: 100dvh;
+  height: 100dvh;
   box-sizing: border-box;
-  overflow-x: auto;   /* 🌟 내부 요소가 설정된 min-width 합산보다 작아지면 스크롤 유발 */
+  
+  /* 🌟 [핵심] 리렌더링 시 스크롤바가 강제 리셋되거나 화면 튕기는 현상 원천 차단 */
+  overflow-x: auto;   
   overflow-y: hidden;
   display: flex;
   flex-direction: column;
@@ -59,10 +65,13 @@ html, body, #root {
   width: 100%;
   height: 100%;
   min-height: 0;
-  min-width: 0;       /* 🌟 자식 요소가 부모 박스 밖으로 튀어나가는 현상 방지 */
+  min-width: 0;       
   gap: 20px;
   padding: 15px;
   box-sizing: border-box;
+  
+  /* 🌟 하위 요소들의 스크롤 전염 방지 */
+  overscroll-behavior-x: contain;
 }
 
 /* 좌측 작업 영역 (헤더 + 달력 + 타임라인) 내부 패딩 통제 */
@@ -70,8 +79,8 @@ html, body, #root {
   display: flex; 
   flex-direction: column; 
   gap: 15px; 
-  flex: 1;            /* 🌟 우측 대화창을 제외한 남은 여백을 유연하게 채움 */
-  min-width: 550px;   /* 🌟 화면이 아주 작아져도 달력이 깨지지 않는 최소 가로폭 보장 */
+  flex: 1;            
+  min-width: 680px;   /* 🌟 [조정] 달력과 타임라인 배치가 이쁘게 유지되는 안전 가로폭 상향 */
   height: 100%;
   min-height: 0;
 }
@@ -369,21 +378,23 @@ html, body, #root {
   justify-content: space-between;
   align-items: center;
   background-color: #ffffff;
-  padding: 12px 20px;
+  padding: 14px 20px;       /* 🌟 여백을 안정적으로 주어 컴포넌트 높이 확보 */
   border-bottom: 1px solid #e4e7ed;
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.03);
   z-index: 1000;
   width: 100%;
+  flex-shrink: 0;           /* 🌟 [핵심] 하위 컨텐츠가 밀어도 상단 바가 위로 절대 찌그러지지 않음 */
 }
 
 .nav-action-btn {
-  padding: 8px 16px;
+  padding: 10px 18px;       /* 🌟 모바일에서도 터치하기 편하게 내부 패딩 살짝 상향 */
   font-size: 13px;
   font-weight: bold;
   border: none;
   border-radius: 6px;
   cursor: pointer;
   transition: all 0.2s ease-in-out;
+  flex-shrink: 0;           /* 🌟 버튼 자체가 찌그러지는 현상 방지 */
 }
 
 .nav-home-btn {
