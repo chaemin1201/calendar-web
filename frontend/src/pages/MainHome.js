@@ -88,14 +88,6 @@ function MainHome() {
     setMyRooms([...arr]);
   };
 
-  const handleRemoveRoomHistory = (e, id) => {
-    e.stopPropagation();
-    if (!window.confirm('방을 대시보드에서 제거하시겠습니까?')) return;
-    const updated = myRooms.filter(r => r.id !== id);
-    setMyRooms(updated);
-    localStorage.setItem('my_shared_calendars', JSON.stringify(updated));
-  };
-
   return (
     <div className="home-container">
       <div className="home-card">
