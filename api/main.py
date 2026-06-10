@@ -73,7 +73,6 @@ class ChatCreate(BaseModel):
     writer: str
     color_code: str
 
-# 🌟 Gemini 구조화된 출력을 위한 Pydantic 모델 추가
 class ExtractedSchedule(BaseModel):
     title: str = Field(description="추출된 일정 핵심 제목 (예: 알고리즘 과제 제출)")
     date_str: str = Field(description="월-일 정보를 MM-DD 형식으로 작성 (예: 06-15)")
@@ -118,7 +117,6 @@ def create_room(room: RoomCreate):
 
 @app.post("/api/rooms/{room_id}/join")
 def join_room(room_id: str, payload: UserJoin):
-    # 🌟 [추가] 해당 방에 이미 같은 색상을 선택한 유저가 있는지 검사
     existing_color = supabase.table("user") \
         .select("*") \
         .eq("room_id", room_id) \
@@ -128,7 +126,6 @@ def join_room(room_id: str, payload: UserJoin):
     if existing_color.data:
         raise HTTPException(status_code=400, detail="이미 다른 팀원이 사용 중인 색상입니다. 다른 색상을 선택해주세요.")
 
-    # 기존 참여 로직
     response = supabase.table("user").insert({
         "room_id": room_id,
         "user_name": payload.user_name,
@@ -142,13 +139,9 @@ def join_room(room_id: str, payload: UserJoin):
 
 @app.get("/api/rooms/{room_id}")
 def get_room_info(room_id: str):
-    """특정 방의 상세 정보(방 이름 등)를 조회합니다."""
     response = supabase.table("room").select("*").eq("room_id", room_id).execute()
-    
     if not response.data:
         raise HTTPException(status_code=404, detail="존재하지 않는 방입니다.")
-        
-    # 프론트엔드가 roomData.room_name을 안전하게 읽을 수 있도록 첫 번째 데이터 반환
     return response.data[0]
 
 @app.get("/api/rooms/{room_id}/users")
@@ -156,32 +149,30 @@ def get_room_users(room_id: str):
     response = supabase.table("user").select("*").eq("room_id", room_id).execute()
     return response.data
 
-
 @app.delete("/api/rooms/{room_id}")
 def delete_room(room_id: str):
     room_check = supabase.table("room").select("*").eq("room_id", room_id).execute()
     if not room_check.data:
         raise HTTPException(status_code=404, detail="방이 존재하지 않습니다.")
 
-    # 1. 스토리지 파일(이미지, 메모 파일) URL 주소 미리 확보
-    schedules_res = supabase.table("schedule").select("image_url, memo_file_url").eq("room_id", room_id).execute()
+    schedules_res = supabase.table("schedule").select("id, image_url, memo_file_url").eq("room_id", room_id).execute()
 
-    # 🌟 [보완] DB 외래키 연쇄 삭제 무결성 에러 방지
-    # 하위 레코드들(자식 테이블)을 종속성 순서에 맞춰 수동으로 안전하게 먼저 제거합니다.
+    # 🌟 [보완] 종속 관계 외래키 해결을 위한 단계별 순차 역순 정리
     try:
-        supabase.table("subschedule").delete().eq("room_id", room_id).execute() # 스키마에 room_id가 있다면 수행
-    except Exception:
-        pass # subschedule에 schedule_id만 연결되어 있다면 아래 schedule 삭제 시 연쇄 삭제되므로 무시 가능
+        if schedules_res.data:
+            sch_ids = [s["id"] for s in schedules_res.data]
+            if sch_ids:
+                supabase.table("subschedule").delete().in_("schedule_id", sch_ids).execute()
+                supabase.table("chat").delete().in_("schedule_id", sch_ids).execute()
+        
+        supabase.table("chat").delete().eq("room_id", room_id).execute()
+        supabase.table("notice").delete().eq("room_id", room_id).execute()
+        supabase.table("user").delete().eq("room_id", room_id).execute()
+        supabase.table("schedule").delete().eq("room_id", room_id).execute()
+        supabase.table("room").delete().eq("room_id", room_id).execute()
+    except Exception as e:
+        print(f"⚠️ 방 연쇄 삭제 중 에러 발생: {e}")
 
-    supabase.table("chat").delete().eq("room_id", room_id).execute()
-    supabase.table("notice").delete().eq("room_id", room_id).execute()
-    supabase.table("user").delete().eq("room_id", room_id).execute()
-    supabase.table("schedule").delete().eq("room_id", room_id).execute()
-
-    # 2. 자식 데이터 정리 후 메인 방 레코드 최종 삭제
-    supabase.table("room").delete().eq("room_id", room_id).execute()
-
-    # 3. DB가 완벽히 밀린 후, Supabase Storage 버킷 리소스 해제
     if schedules_res.data:
         for sch in schedules_res.data:
             if sch.get("image_url"):
@@ -196,23 +187,17 @@ def delete_room(room_id: str):
 
 @app.delete("/api/rooms/{room_id}/users/{user_id}")
 def leave_user(room_id: str, user_id: int):
-    # 1. 탈퇴하려는 유저가 방에 실제로 존재하는지 확인
     user_check = supabase.table("user").select("*").eq("id", user_id).eq("room_id", room_id).execute()
     if not user_check.data:
         raise HTTPException(status_code=404, detail="해당 방에 존재하지 않는 사용자입니다.")
 
     user_name = user_check.data[0]["user_name"]
 
-    # 2. 사용자가 등록했던 세부 일정(subschedule) 시간표 데이터만 삭제
     try:
         supabase.table("subschedule").delete().eq("user_name", user_name).execute()
     except Exception as e:
         print(f"⚠️ subschedule 삭제 중 예외 발생: {e}")
 
-    # 🌟 [수정] 기존에 있던 채팅 내역을 수정(update)하는 로직을 통째로 들어냈습니다.
-    # 이제 이 유저가 작성했던 채팅의 content, writer(이름), color_code 등은 DB에 그대로 보존됩니다.
-    
-    # 3. 최종적으로 '참여 목록'에서만 유저 삭제
     supabase.table("user").delete().eq("id", user_id).execute()
     
     return {
@@ -229,7 +214,6 @@ def get_notices(room_id: str):
     response = supabase.table("notice").select("*").eq("room_id", room_id).order("id", desc=True).execute()
     return response.data
 
-
 @app.post("/api/rooms/{room_id}/notices")
 def create_notice(room_id: str, notice: NoticeCreate):
     supabase.table("notice").insert({
@@ -240,7 +224,6 @@ def create_notice(room_id: str, notice: NoticeCreate):
         "end_date": notice.end_date,
     }).execute()
     return {"status": "success"}
-
 
 @app.delete("/api/notices/{notice_id}")
 def delete_notice(notice_id: int):
@@ -257,14 +240,11 @@ def delete_notice(notice_id: int):
 # ==========================================
 @app.get("/api/rooms/{room_id}/chats")
 def get_chats(room_id: str):
-    # 🌟 schedule_id가 null인 전역 채팅만 필터링할 때, Supabase에서는 .is_("schedule_id", "null") 형식이 맞습니다.
     response = supabase.table("chat").select("*").eq("room_id", room_id).is_("schedule_id", "null").execute()
     return response.data
 
-
 @app.post("/api/rooms/{room_id}/chats")
 def create_chat(room_id: str, chat: ChatCreate):
-    # 🌟 [수정] "room_id": room_id 가 두 번 중복 선언되어 있던 버그를 제거했습니다.
     supabase.table("chat").insert({
         "room_id": room_id,
         "schedule_id": None,
@@ -282,7 +262,6 @@ def create_chat(room_id: str, chat: ChatCreate):
 def get_room_schedules(room_id: str):
     response = supabase.table("schedule").select("*").eq("room_id", room_id).execute()
     return response.data
-
 
 @app.post("/api/rooms/{room_id}/schedules/manual")
 async def create_schedule_manual(
@@ -320,7 +299,6 @@ async def create_schedule_manual(
     
     return response.data[0] if response.data else {}
 
-
 @app.patch("/api/schedules/{schedule_id}/move")
 def move_schedule(schedule_id: int, payload: ScheduleMove):
     sch_check = supabase.table("schedule").select("*").eq("id", schedule_id).execute()
@@ -329,7 +307,6 @@ def move_schedule(schedule_id: int, payload: ScheduleMove):
 
     supabase.table("schedule").update({"event_time": payload.event_time}).eq("id", schedule_id).execute()
     return {"status": "success"}
-
 
 @app.patch("/api/schedules/{schedule_id}")
 def update_schedule_details(schedule_id: int, payload: ScheduleUpdate):
@@ -348,7 +325,6 @@ def update_schedule_details(schedule_id: int, payload: ScheduleUpdate):
         
     return {"status": "success", "message": "일정 정보 및 메모가 수정되었습니다."}
 
-
 @app.delete("/api/schedules/{schedule_id}")
 def delete_schedule(schedule_id: int):
     sch_check = supabase.table("schedule").select("*").eq("id", schedule_id).execute()
@@ -357,7 +333,13 @@ def delete_schedule(schedule_id: int):
 
     sch = sch_check.data[0]
 
-    # DB 테이블을 먼저 지우고 성공하면 스토리지를 비웁니다.
+    # 자식 테이블 선제거로 무결성 충돌 회피
+    try:
+        supabase.table("subschedule").delete().eq("schedule_id", schedule_id).execute()
+        supabase.table("chat").delete().eq("schedule_id", schedule_id).execute()
+    except Exception as e:
+        print(f"⚠️ 하위 일정/채팅 데이터 정리 실패(무시가능): {e}")
+
     supabase.table("schedule").delete().eq("id", schedule_id).execute()
     
     delete_storage_file(sch.get("image_url"))
@@ -407,7 +389,6 @@ async def create_schedule_ai(
         current_date_friendly = now.strftime("%m월 %d일")
         current_time_friendly = now.strftime("%H시 %M분")
 
-        # 🌟 구조화된 응답을 위해 모델 객체 생성 및 config 설정 수정
         model = genai.GenerativeModel("gemini-2.5-flash")
         image_parts = [{"mime_type": file.content_type, "data": image_bytes}]
 
@@ -421,7 +402,6 @@ async def create_schedule_ai(
         - 이미지에 시간 정보가 전혀 없다면 기본값으로 현재 시간인 "{current_time_str}" 또는 "12:00"으로 채워줘.
         """
 
-        # 🌟 response_schema 옵션을 활용해 완벽한 형식의 JSON 강제 빌드
         response = model.generate_content(
             [prompt, image_parts[0]],
             generation_config={
@@ -433,7 +413,6 @@ async def create_schedule_ai(
         raw_text = response.text.strip()
 
         try:
-            # 안전하게 구조화된 데이터를 pydantic 구조를 경유해 파싱
             parsed_json = json.loads(raw_text)
             parsed_data = parsed_json.get("schedules", [])
         except Exception:
@@ -480,6 +459,7 @@ async def create_schedule_ai(
         )
 
 
+# 🌟 [수정 완료] 자동 저장 디바운스 및 파일 업로드 시 파일 종속성 버그 완벽 방어 API
 @app.patch("/api/schedules/{schedule_id}/memo")
 async def update_schedule_memo(
     schedule_id: int,
@@ -491,11 +471,13 @@ async def update_schedule_memo(
         raise HTTPException(status_code=404, detail="일정이 존재하지 않습니다.")
 
     sch = sch_check.data[0]
-    memo_file_url = sch.get("memo_file_url")
+    memo_file_url = sch.get("memo_file_url") # 기존 파일 주소 로드
 
+    # 🌟 새 파일이 실제로 업로드되어 들어온 경우에만 스토리지 교체 작업을 수행합니다.
     if file and file.filename and SUPABASE_URL and SUPABASE_ANON_KEY:
-        # 구 파일 삭제 후 교체
-        delete_storage_file(memo_file_url)
+        # 기존 파일이 있다면 버킷에서 물리 삭제
+        if memo_file_url:
+            delete_storage_file(memo_file_url)
 
         random_prefix = random.randint(1000, 9999)
         clean_filename = f"memo_{random_prefix}_{file.filename.replace(' ', '_')}"
@@ -511,6 +493,7 @@ async def update_schedule_memo(
         except Exception as e:
             print(f"⚠️ 메모 파일 클라우드 스토리지 저장 실패: {e}")
 
+    # 파일이 넘어오지 않은 순수 자동 분할 저장 타이밍엔 기존 memo_file_url 주소를 그대로 유지하여 업데이트
     response = supabase.table("schedule").update({
         "memo": memo,
         "memo_file_url": memo_file_url
@@ -529,7 +512,6 @@ def get_sub_schedules(schedule_id: int):
     response = supabase.table("subschedule").select("*").eq("schedule_id", schedule_id).execute()
     return response.data
 
-
 @app.post("/api/schedules/{schedule_id}/sub-schedules")
 def create_sub_schedule(schedule_id: int, sub: SubScheduleCreate):
     response = supabase.table("subschedule").insert({
@@ -543,15 +525,25 @@ def create_sub_schedule(schedule_id: int, sub: SubScheduleCreate):
     return response.data[0] if response.data else {}
 
 
+# 🌟 [신규 추가] 프론트엔드의 공석 조율 On/Off 토글 해제를 위한 단일 서브 일정 삭제 API
+@app.delete("/api/sub-schedules/{sub_id}")
+def delete_single_sub_schedule(sub_id: int):
+    """사용자가 선택했던 공석 시간 셀을 다시 클릭하여 해제(OFF)할 때 호출되는 API"""
+    sub_check = supabase.table("subschedule").select("*").eq("id", sub_id).execute()
+    if not sub_check.data:
+        raise HTTPException(status_code=404, detail="해당 공석 시간 정보가 존재하지 않습니다.")
+        
+    supabase.table("subschedule").delete().eq("id", sub_id).execute()
+    return {"status": "success", "message": "공석 조율 시간이 취소되었습니다."}
+
+
 @app.get("/api/schedules/{schedule_id}/chats")
 def get_schedule_chats(schedule_id: int):
     response = supabase.table("chat").select("*").eq("schedule_id", schedule_id).execute()
     return response.data
 
-
 @app.post("/api/schedules/{schedule_id}/chats")
 def create_schedule_chat(schedule_id: int, chat: ChatCreate):
-    # 🌟 일정 내부 채팅이므로 저장 시 schedule_id 명시적으로 매핑
     supabase.table("chat").insert({
         "schedule_id": schedule_id,
         "content": chat.content,
@@ -576,7 +568,6 @@ def delete_schedule_main_image(schedule_id: int):
         delete_storage_file(sch.get("image_url"))
         
     return {"status": "success", "message": "일정 메인 이미지가 삭제되었습니다."}
-
 
 @app.delete("/api/schedules/{schedule_id}/memo-file")
 def delete_schedule_memo_file(schedule_id: int):

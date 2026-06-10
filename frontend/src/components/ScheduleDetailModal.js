@@ -85,7 +85,7 @@ function ScheduleDetailModal({
   }, [memoInput, selectedEventId, API_BASE_URL, roomId, setSelectedEventData, setSchedules]);
 
 
-  // 🌟 [수정] 백엔드 응답 구조(data.memo_file_url 최상위 추출)를 반영한 파일 첨부 핸들러
+  // 🌟 [수정 완료] 백엔드 응답의 다양한 중첩 객체 깊이를 모두 방어하는 파일 첨부 핸들러
   const handleMemoFileChange = async (e) => {
     e.stopPropagation(); // 이벤트 버블링 방지
     
@@ -113,11 +113,15 @@ function ScheduleDetailModal({
       }
 
       if (res.ok) {
-        const data = await res.json();
-        console.log("백엔드 파일 업로드 응답 데이터:", data);
+        const responseData = await res.json();
+        console.log("백엔드 파일 업로드 실제 응답 데이터:", responseData);
         
-        // 백엔드가 객체 최상위에 바로 내려주는 주소(data.memo_file_url) 매핑
-        const fileUrl = data.memo_file_url;
+        // 🌟 백엔드가 데이터를 어떻게 감싸서 보내든 안정적으로 추출하는 안전장치
+        const fileUrl = 
+          responseData.memo_file_url || 
+          responseData.data?.memo_file_url || 
+          responseData.result?.memo_file_url ||
+          responseData.schedule?.memo_file_url;
 
         if (fileUrl) {
           // 백엔드에서 내려준 새 파일 URL 반영 및 전체 일정 리스트 동기화
@@ -125,8 +129,8 @@ function ScheduleDetailModal({
           setSchedules(prev => prev.map(s => (s.id === selectedEventId || s._id === selectedEventId) ? { ...s, memo_file_url: fileUrl } : s));
           alert("📎 공유 메모장에 파일이 성공적으로 첨부되었습니다!");
         } else {
-          console.error("응답 에러 구조:", data);
-          alert("서버 응답에서 파일 주소(memo_file_url)를 찾을 수 없습니다.");
+          console.error("응답 에러 구조 분석용:", responseData);
+          alert("서버 응답 구조에 memo_file_url 필드가 비어있거나 찾을 수 없습니다.");
         }
       } else {
         alert(`파일 업로드에 실패했습니다. (에러 코드: ${res.status})`);
@@ -211,27 +215,44 @@ function ScheduleDetailModal({
     } catch (e) { console.error(e); }
   };
 
+  // 🌟 [수정 완료] id / _id 예외 처리를 보정하여 한 번 더 누르면 정확하게 꺼지도록 수정한 토글 핸들러
   const handleSplitTimeCellClick = async (baseHourStr) => {
     if (!selectedEventId) return;
     const targetTime = `${baseHourStr.split(':')[0]}:00`;
 
+    // 1. 이미 내가 선택한 시간에 포함되어 있다면 -> '삭제(OFF)' 로직 실행
     if (localMyTimes.includes(targetTime)) {
       const subToDelete = subSchedules.find(s => 
         String(s.user_name).trim() === String(myName).trim() && 
         String(s.available_time) === String(targetTime)
       );
+      
       if (!subToDelete) {
         setLocalMyTimes(prev => prev.filter(t => t !== targetTime));
         return;
       }
+      
       const subId = subToDelete.id || subToDelete._id;
+      
       try {
         const res = await fetch(`${API_BASE_URL}/api/sub-schedules/${subId}`, { method: 'DELETE' });
         if (res.ok) {
+          // 내 로컬 타임 배열에서 제거
           setLocalMyTimes(prev => prev.filter(t => t !== targetTime));
-          setSubSchedules(prev => prev.filter(s => s.id !== subId && s._id !== subId));
+          
+          // 🌟 식별자가 어떤 형태든 일관되게 매칭시켜 프론트 화면 상태(State)에서 즉시 삭제
+          setSubSchedules(prev => prev.filter(s => {
+            const currentId = s.id || s._id;
+            return currentId !== subId;
+          }));
+        } else {
+          alert(`공석 조율 취소 실패 (에러 코드: ${res.status})`);
         }
-      } catch (e) { console.error(e); }
+      } catch (e) { 
+        console.error("공석 삭제 통신 에러:", e); 
+      }
+      
+    // 2. 선택되지 않은 시간이라면 -> '추가(ON)' 로직 실행
     } else {
       try {
         const res = await fetch(`${API_BASE_URL}/api/schedules/${selectedEventId}/sub-schedules`, {
@@ -239,13 +260,19 @@ function ScheduleDetailModal({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ user_name: myName, color_code: myColor, available_time: targetTime })
         });
+        
         if (res.ok) {
           const newSub = await res.json();
           const resultObj = newSub.data || newSub;
+          
           setLocalMyTimes(prev => [...prev, targetTime]);
           setSubSchedules(prev => [...prev, resultObj]);
+        } else {
+          alert(`공석 조율 등록 실패 (에러 코드: ${res.status})`);
         }
-      } catch (e) { console.error(e); }
+      } catch (e) { 
+        console.error("공석 등록 통신 에러:", e); 
+      }
     }
   };
 
@@ -371,7 +398,7 @@ function ScheduleDetailModal({
                 <div style={{ marginTop: '5px', background: '#f1f3f5', padding: '6px 10px', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden', flex: 1 }}>
                     <span style={{ fontSize: '12px', color: '#2f3542', flexShrink: 0 }}>📁 첨부 파일:</span>
-                    {/* 🌟 [버그 수정]: 백엔드에서 Supabase Public URL(https://...)을 완전히 조립해서 주므로 API_BASE_URL을 더이상 중복 서술하지 않습니다. */}
+                    {/* 🌟 중복 도메인 버그 전면 수정 */}
                     <a 
                       href={selectedEventData.memo_file_url} 
                       target="_blank" 
