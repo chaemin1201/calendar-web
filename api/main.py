@@ -460,7 +460,7 @@ async def create_schedule_ai(
 
 
 # 🌟 [수정 완료] 자동 저장 디바운스 및 파일 업로드 시 파일 종속성 버그 완벽 방어 API
-@app.patch("/api/schedules/")
+@app.patch("/api/schedules/{schedule_id}/memo")
 async def update_schedule_memo(
     schedule_id: int,
     memo: str = Form(""), # 🌟 빈 문자열 허용하여 422 에러 완벽 방어
@@ -492,14 +492,23 @@ async def update_schedule_memo(
 
         try:
             file_bytes = await file.read()
-            supabase_client.storage.from_("uploaded_images").upload(
+
+            print("📤 업로드 시작:", file.filename)
+
+            result = supabase_client.storage.from_("uploaded_images").upload(
                 path=clean_filename,
                 file=file_bytes,
                 file_options={"content-type": content_type}
             )
+
+            print("✅ 업로드 결과:", result)
+
             memo_file_url = supabase_client.storage.from_("uploaded_images").get_public_url(clean_filename)
+
+            print("🔗 생성된 URL:", memo_file_url)
         except Exception as e:
-            print(f"⚠️ 파일 클라우드 스토리지 저장 실패: {e}")
+            import traceback
+            traceback.print_exc()
 
     final_memo = memo if memo.strip() else sch.get("memo", "")
 
@@ -513,11 +522,7 @@ async def update_schedule_memo(
     # 🌟 프론트엔드가 에러 창을 띄우지 않도록 모든 깊이(Depth)에 데이터 매핑하여 리턴
     return {
         "status": "updated",
-        "data": {
-            "id": schedule_id,
-            "memo": updated_sch.get("memo"),
-            "memo_file_url": updated_sch.get("memo_file_url")
-        },
+        "id": schedule_id,
         "memo": updated_sch.get("memo"),
         "memo_file_url": updated_sch.get("memo_file_url")
     }
@@ -595,7 +600,7 @@ def delete_schedule_main_image(schedule_id: int):
         
     return {"status": "success", "message": "일정 메인 이미지가 삭제되었습니다."}
 
-@app.delete("/api/schedules/-file")
+@app.delete("/api/schedules/{schedule_id}/memo-file")
 def delete_schedule_memo_file(schedule_id: int):
     sch_check = supabase.table("schedule").select("*").eq("id", schedule_id).execute()
     if not sch_check.data:

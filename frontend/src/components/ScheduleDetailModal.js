@@ -212,9 +212,11 @@ useEffect(() => {
 
       if (res.ok) {
         setSelectedEventData(prev => ({ ...prev, ...updatedFields }));
-        setSchedules(prev =>
-          prev.map(s => (s.id === selectedEventId || s._id === selectedEventId) ? { ...s, ...updatedFields } : s)
-        );
+        setSchedules(prev => prev.map(s => 
+          (s.id === selectedEventId || s._id === selectedEventId) 
+          ? { ...s, ...updatedFields } 
+          : s
+        ));
         alert("💾 변경사항이 성공적으로 저장되었습니다!");
       } else {
         alert(`저장 실패 (서버 에러 코드: ${res.status})`);
